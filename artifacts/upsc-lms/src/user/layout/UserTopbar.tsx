@@ -1,12 +1,13 @@
 import { Bell, Search } from "lucide-react";
-import { useAuthStore } from "../../store/authStore";
+import { useAuthStore } from "@/user/features/auth/store/authStore";
+import { ThemeToggle } from "@/shared/components/ThemeToggle";
 
 export default function UserTopbar() {
   const { currentUser } = useAuthStore();
   const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <header className="h-16 bg-white border-b border-border flex items-center justify-between px-6 flex-shrink-0">
+    <header className="h-16 bg-background border-b border-border flex items-center justify-between px-6 flex-shrink-0">
       <div className="flex items-center gap-3 flex-1 max-w-md">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -20,12 +21,13 @@ export default function UserTopbar() {
       </div>
       <div className="flex items-center gap-4">
         <span className="text-xs text-muted-foreground hidden md:block">{today}</span>
+        <ThemeToggle />
         <button
           data-testid="button-notifications"
           className="relative w-9 h-9 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
         >
           <Bell className="w-4 h-4 text-foreground" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: "#FF6B00" }} />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: "#009E2C" }} />
         </button>
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white"

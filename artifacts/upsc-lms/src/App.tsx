@@ -1,41 +1,46 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "next-themes";
+import { Toaster } from "@/shared/components/ui/toaster";
+import { TooltipProvider } from "@/shared/components/ui/tooltip";
 
-import LandingPage from "@/user/pages/LandingPage";
-import LoginPage from "@/user/pages/LoginPage";
-import RegisterPage from "@/user/pages/RegisterPage";
+// ── Public / Auth ──────────────────────────────────────────────────────────
+import LandingPage from "@/user/features/auth/pages/LandingPage";
+import LoginPage from "@/user/features/auth/pages/LoginPage";
+import RegisterPage from "@/user/features/auth/pages/RegisterPage";
 
+// ── User (Student) ─────────────────────────────────────────────────────────
 import UserLayout from "@/user/layout/UserLayout";
-import StudentDashboard from "@/user/pages/StudentDashboard";
-import CoursesPage from "@/user/pages/CoursesPage";
-import CourseDetailPage from "@/user/pages/CourseDetailPage";
-import WeeklyCoursePage from "@/user/pages/WeeklyCoursePage";
-import DailyHabitsPage from "@/user/pages/DailyHabitsPage";
-import LeaderboardPage from "@/user/pages/LeaderboardPage";
-import MentorsPage from "@/user/pages/MentorsPage";
-import SessionsPage from "@/user/pages/SessionsPage";
-import CurrentAffairsPage from "@/user/pages/CurrentAffairsPage";
-import ProfilePage from "@/user/pages/ProfilePage";
+import StudentDashboard from "@/user/features/dashboard/pages/StudentDashboard";
+import CoursesPage from "@/user/features/courses/pages/CoursesPage";
+import CourseDetailPage from "@/user/features/courses/pages/CourseDetailPage";
+import WeeklyCoursePage from "@/user/features/courses/pages/WeeklyCoursePage";
+import DailyHabitsPage from "@/user/features/habits/pages/DailyHabitsPage";
+import LeaderboardPage from "@/user/features/leaderboard/pages/LeaderboardPage";
+import MentorsPage from "@/user/features/mentors/pages/MentorsPage";
+import SessionsPage from "@/user/features/mentors/pages/SessionsPage";
+import CurrentAffairsPage from "@/user/features/current-affairs/pages/CurrentAffairsPage";
+import ProfilePage from "@/user/features/profile/pages/ProfilePage";
 
+// ── Mentor ─────────────────────────────────────────────────────────────────
 import MentorLayout from "@/mentor/layout/MentorLayout";
-import MentorDashboard from "@/mentor/pages/MentorDashboard";
-import MentorSessionsPage from "@/mentor/pages/MentorSessionsPage";
-import MentorStudentsPage from "@/mentor/pages/MentorStudentsPage";
-import MentorReviewsPage from "@/mentor/pages/MentorReviewsPage";
-import MentorAvailabilityPage from "@/mentor/pages/MentorAvailabilityPage";
+import MentorDashboard from "@/mentor/features/dashboard/pages/MentorDashboard";
+import MentorSessionsPage from "@/mentor/features/sessions/pages/MentorSessionsPage";
+import MentorStudentsPage from "@/mentor/features/students/pages/MentorStudentsPage";
+import MentorReviewsPage from "@/mentor/features/reviews/pages/MentorReviewsPage";
+import MentorAvailabilityPage from "@/mentor/features/availability/pages/MentorAvailabilityPage";
 
+// ── Admin ──────────────────────────────────────────────────────────────────
 import AdminLayout from "@/admin/layout/AdminLayout";
-import AdminDashboard from "@/admin/pages/AdminDashboard";
-import MentorManagementPage from "@/admin/pages/MentorManagementPage";
-import StudentAnalyticsPage from "@/admin/pages/StudentAnalyticsPage";
-import CourseBuilderPage from "@/admin/pages/CourseBuilderPage";
-import LeaderboardControlPage from "@/admin/pages/LeaderboardControlPage";
-import RevenuePage from "@/admin/pages/RevenuePage";
-import AnnouncementsPage from "@/admin/pages/AnnouncementsPage";
+import AdminDashboard from "@/admin/features/dashboard/pages/AdminDashboard";
+import MentorManagementPage from "@/admin/features/mentors/pages/MentorManagementPage";
+import StudentAnalyticsPage from "@/admin/features/students/pages/StudentAnalyticsPage";
+import CourseBuilderPage from "@/admin/features/courses/pages/CourseBuilderPage";
+import LeaderboardControlPage from "@/admin/features/leaderboard/pages/LeaderboardControlPage";
+import RevenuePage from "@/admin/features/revenue/pages/RevenuePage";
+import AnnouncementsPage from "@/admin/features/announcements/pages/AnnouncementsPage";
 
-import NotFound from "@/pages/not-found";
+import NotFound from "@/shared/pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -55,10 +60,10 @@ function Router() {
         <UserLayout><CoursesPage /></UserLayout>
       </Route>
       <Route path="/courses/:id/week/:weekId">
-        {(params) => <UserLayout><WeeklyCoursePage /></UserLayout>}
+        {() => <UserLayout><WeeklyCoursePage /></UserLayout>}
       </Route>
       <Route path="/courses/:id">
-        {(params) => <UserLayout><CourseDetailPage /></UserLayout>}
+        {() => <UserLayout><CourseDetailPage /></UserLayout>}
       </Route>
       <Route path="/habits">
         <UserLayout><DailyHabitsPage /></UserLayout>
@@ -127,12 +132,14 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <ThemeProvider attribute="class" defaultTheme="light">
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

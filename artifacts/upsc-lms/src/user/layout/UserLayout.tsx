@@ -1,4 +1,4 @@
-import { useAuthStore } from "../../store/authStore";
+import { useAuthStore } from "@/user/features/auth/store/authStore";
 import { Redirect } from "wouter";
 import UserSidebar from "./UserSidebar";
 import UserTopbar from "./UserTopbar";
