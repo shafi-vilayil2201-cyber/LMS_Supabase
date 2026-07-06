@@ -164,6 +164,7 @@ export default function DailyHabitsPage() {
   ];
 
   // ─── Initialize Data from Supabase ──────────────────────────────────────────
+
   useEffect(() => {
     const uid = currentUser?.id;
     if (!uid) return;
@@ -221,18 +222,30 @@ export default function DailyHabitsPage() {
             return { ...h, isCompletedToday: isDone };
           });
           
-          const customList = Array.isArray(todayRow.customHabits) ? todayRow.customHabits : [];
+          let customList = [];
+          
+          // Deserialize JSON fields from newspaperHeadlines
+          if (todayRow.newspaperHeadlines) {
+            try {
+              const parsed = JSON.parse(todayRow.newspaperHeadlines);
+              if (parsed.morningPlan) {
+                setMorningPlan(parsed.morningPlan);
+              }
+              if (Array.isArray(parsed.focusSessions)) {
+                setFocusSessions(parsed.focusSessions);
+              }
+              if (parsed.nightReview) {
+                setNightReview(parsed.nightReview);
+              }
+              if (Array.isArray(parsed.customHabits)) {
+                customList = parsed.customHabits;
+              }
+            } catch (err) {
+              console.warn("Error parsing serialized newspaperHeadlines JSON:", err);
+            }
+          }
+          
           setHabits([...coreHabits, ...customList]);
-
-          if (todayRow.morningPlan) {
-            setMorningPlan(todayRow.morningPlan);
-          }
-          if (Array.isArray(todayRow.focusSessions)) {
-            setFocusSessions(todayRow.focusSessions);
-          }
-          if (todayRow.nightReview) {
-            setNightReview(todayRow.nightReview);
-          }
           setSyncStatus(null);
         } else {
           // Initialize fresh today's state in database
@@ -252,6 +265,13 @@ export default function DailyHabitsPage() {
           setNightReview({ submitted: false });
           
           // Pre-save row
+          const serializedData = JSON.stringify({
+            morningPlan: initialPlan,
+            focusSessions: initialSessions,
+            nightReview: { submitted: false },
+            customHabits: [],
+          });
+          
           await supabase.from("daily_habits").insert({
             userId: uid,
             date: todayStr,
@@ -260,10 +280,7 @@ export default function DailyHabitsPage() {
             newspaperRead: false,
             exerciseDone: false,
             disciplineScore: 0.0,
-            morningPlan: initialPlan,
-            focusSessions: initialSessions,
-            nightReview: { submitted: false },
-            customHabits: [],
+            newspaperHeadlines: serializedData,
           });
           setSyncStatus(null);
         }
@@ -305,6 +322,14 @@ export default function DailyHabitsPage() {
     const earnedPts = updatedHabits.reduce((acc, h) => acc + (h.isCompletedToday ? h.points : 0), 0);
     const score = totalPts > 0 ? Number(((earnedPts / totalPts) * 4).toFixed(1)) : 0.0;
     
+    // Serialize custom fields into newspaperHeadlines
+    const serializedData = JSON.stringify({
+      morningPlan: updatedPlan,
+      focusSessions: updatedSessions,
+      nightReview: updatedReview,
+      customHabits: customList,
+    });
+    
     try {
       const { error } = await supabase
         .from("daily_habits")
@@ -316,10 +341,7 @@ export default function DailyHabitsPage() {
           newspaperRead: isNewsDone,
           exerciseDone: isExecDone,
           disciplineScore: score,
-          morningPlan: updatedPlan,
-          focusSessions: updatedSessions,
-          nightReview: updatedReview,
-          customHabits: customList,
+          newspaperHeadlines: serializedData,
         }, { onConflict: "userId,date" });
         
       if (error) throw error;
@@ -327,7 +349,7 @@ export default function DailyHabitsPage() {
     } catch (err: any) {
       console.warn("Could not sync with Supabase daily_habits table, saving locally:", err.message);
       setSyncStatus(
-        `Saved locally. Connection to Supabase daily_habits is pending. discipline score: ${score} / 4`
+        `Offline mode. Saved locally. discipline score: ${score} / 4`
       );
       // fallback
       localStorage.setItem("igen-local-habits", JSON.stringify(updatedHabits));
