@@ -12,8 +12,13 @@ const navItems = [
 ];
 
 export default function MentorSidebar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { currentUser, logout } = useAuthStore();
+
+  async function handleLogout() {
+    await logout();
+    setLocation("/login");
+  }
 
   return (
     <aside className="w-64 min-h-screen flex flex-col bg-sidebar border-r border-sidebar-border">
@@ -64,7 +69,7 @@ export default function MentorSidebar() {
       </nav>
 
       <div className="px-3 py-4 border-t border-sidebar-border">
-        <button onClick={logout} data-testid="button-mentor-logout"
+        <button onClick={handleLogout} data-testid="button-mentor-logout"
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all w-full">
           <LogOut className="w-4 h-4" />
           <span className="text-sm">Logout</span>

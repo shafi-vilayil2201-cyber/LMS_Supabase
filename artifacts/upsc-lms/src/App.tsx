@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/shared/components/ui/toaster";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
+import AuthProvider from "@/shared/components/AuthProvider";
 
 // ── Public / Auth ──────────────────────────────────────────────────────────
 import LandingPage from "@/user/features/auth/pages/LandingPage";
@@ -135,7 +136,9 @@ function App() {
       <ThemeProvider attribute="class" defaultTheme="light">
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
+            <AuthProvider>
+              <Router />
+            </AuthProvider>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>

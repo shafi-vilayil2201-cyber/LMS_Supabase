@@ -93,16 +93,32 @@ export const getMentorApplications = async () => {
   return data ?? [];
 };
 
-// ── Write & Mutation APIs ────────────────────────────────────────────────────
-
-export const registerUser = async (user: any) => {
-  const { data, error } = await supabase.from('users').insert([user]).select();
+export const getUserProfile = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
   if (error) {
-    console.error('Error registering user:', error);
-    throw error;
+    console.error('Error fetching user profile:', error);
+    return null;
   }
-  return data?.[0];
+  return data;
 };
+
+export const getUsersByRole = async (role: string) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('role', role);
+  if (error) {
+    console.error('Error fetching users by role:', error);
+    return [];
+  }
+  return data ?? [];
+};
+
+// ── Write & Mutation APIs ────────────────────────────────────────────────────
 
 export const saveDailyHabits = async (userId: string, date: string, habits: any) => {
   const disciplineScore = (Object.values(habits).filter(Boolean).length * 10 / 40) * 4; // Max 4.0
@@ -333,55 +349,122 @@ export const getAdminAnalytics = async () => {
   const mentors = users.filter((u: any) => u.role === 'mentor' && u.approvalStatus === 'approved');
   const pendingApps = applications.filter((a: any) => a.status === 'pending');
 
-  const totalStudents = students.length || 24500; // fallback to mock if db is empty
-  const totalMentors = mentors.length || 48;
-  const pendingMentorApprovals = pendingApps.length || 2;
-  const totalCourses = courses.length || 6;
+  const totalStudents = students.length;
+  const totalMentors = mentors.length;
+  const pendingMentorApprovals = pendingApps.length;
+  const totalCourses = courses.length;
 
-  const activeCourseEnrollments = courses.reduce((acc, c) => acc + (c.enrolledStudents || 0), 0) || 12800;
-  const avgWeeklyScore = reviews.filter((r) => r.status === 'Completed' && r.totalScore != null)
-    .reduce((acc, r, _, arr) => acc + r.totalScore / arr.length, 0) || 7.8;
+  const activeCourseEnrollments = students.reduce((acc, s) => {
+    const courseCount = Array.isArray(s.enrolledCourses) ? s.enrolledCourses.length : 0;
+    return acc + courseCount;
+  }, 0);
 
-  // Static items for charting aesthetics
-  const revenueMonthly = [
-    { month: 'Nov', revenue: 8200000 },
-    { month: 'Dec', revenue: 9100000 },
-    { month: 'Jan', revenue: 10400000 },
-    { month: 'Feb', revenue: 11200000 },
-    { month: 'Mar', revenue: 11900000 },
-    { month: 'Apr', revenue: 12500000 }
-  ];
+  const completedReviews = reviews.filter((r) => r.status === 'Completed' && r.totalScore != null);
+  const avgWeeklyScore = completedReviews.length > 0
+    ? completedReviews.reduce((acc, r) => acc + Number(r.totalScore), 0) / completedReviews.length
+    : 0;
 
-  const userGrowth = [
-    { month: 'Nov', students: 950 },
-    { month: 'Dec', students: 1100 },
-    { month: 'Jan', students: 1400 },
-    { month: 'Feb', students: 1650 },
-    { month: 'Mar', students: 1700 },
-    { month: 'Apr', students: 1850 }
-  ];
+  // Calculate dropout risk: ratio of students whose latest review score was < 7.5
+  let riskCount = 0;
+  students.forEach((student: any) => {
+    const studentReviews = reviews.filter((r) => r.userId === student.id && r.status === 'Completed');
+    if (studentReviews.length > 0) {
+      const latestReview = studentReviews.reduce((latest, current) => {
+        return new Date(current.scheduledAt) > new Date(latest.scheduledAt) ? current : latest;
+      });
+      if (latestReview.totalScore < 7.5) {
+        riskCount++;
+      }
+    }
+  });
+  const dropoutRiskPercent = students.length > 0 ? Math.round((riskCount / students.length) * 100) : 0;
 
-  const courseEnrollments = courses.map((c) => ({
-    course: c.title.split(' ')[0],
-    count: c.enrolledStudents || 0
+  // Monthly breakdown of registration & revenue over the last 6 months
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const last6Months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    last6Months.push({
+      monthName: months[d.getMonth()],
+      year: d.getFullYear(),
+      monthIndex: d.getMonth(),
+      studentsCount: 0,
+      revenue: 0
+    });
+  }
+
+  last6Months.forEach((m) => {
+    const endOfMonth = new Date(m.year, m.monthIndex + 1, 0, 23, 59, 59, 999);
+    m.studentsCount = students.filter((s: any) => new Date(s.joinedAt) <= endOfMonth).length;
+
+    const startOfMonth = new Date(m.year, m.monthIndex, 1);
+    const joinedThisMonth = students.filter((s: any) => {
+      const joinDate = new Date(s.joinedAt);
+      return joinDate >= startOfMonth && joinDate <= endOfMonth;
+    });
+
+    let monthRev = 0;
+    joinedThisMonth.forEach((s: any) => {
+      if (Array.isArray(s.enrolledCourses)) {
+        s.enrolledCourses.forEach((courseId: string) => {
+          const course = courses.find(c => c.id === courseId);
+          if (course) {
+            monthRev += course.price || 0;
+          }
+        });
+      }
+    });
+    m.revenue = monthRev;
+  });
+
+  const userGrowth = last6Months.map(m => ({
+    month: m.monthName,
+    students: m.studentsCount
   }));
 
-  const courseRevenue = courses.map((c) => ({
-    name: c.title,
-    revenue: (c.enrolledStudents || 0) * (c.price || 2500),
-    enrollments: c.enrolledStudents || 0,
-    price: c.price || 2500,
+  const monthlyRevenueData = last6Months.map(m => ({
+    month: m.monthName,
+    revenue: m.revenue
   }));
+
+  const monthlyRevenue = last6Months[last6Months.length - 1].revenue;
+
+  const courseEnrollments = courses.map((c) => {
+    const count = students.filter(s => Array.isArray(s.enrolledCourses) && s.enrolledCourses.includes(c.id)).length;
+    return {
+      course: c.title.split(' ')[0],
+      count
+    };
+  });
+
+  const courseRevenue = courses.map((c) => {
+    const enrollmentsCount = students.filter(s => Array.isArray(s.enrolledCourses) && s.enrolledCourses.includes(c.id)).length;
+    return {
+      name: c.title,
+      revenue: enrollmentsCount * (c.price || 0),
+      enrollments: enrollmentsCount,
+      price: c.price || 0
+    };
+  });
 
   // Score distribution ranges
   const completedScores = reviews.filter((r) => r.status === 'Completed' && r.totalScore != null).map((r) => r.totalScore);
   const scoreDistribution = [
-    { range: '9-10', count: completedScores.filter(s => s >= 9).length || 1240 },
-    { range: '8-9', count: completedScores.filter(s => s >= 8 && s < 9).length || 4800 },
-    { range: '7.5-8', count: completedScores.filter(s => s >= 7.5 && s < 8).length || 3200 },
-    { range: '7-7.5', count: completedScores.filter(s => s >= 7 && s < 7.5).length || 2100 },
-    { range: 'Below 7', count: completedScores.filter(s => s < 7).length || 1460 }
+    { range: '9-10', count: completedScores.filter(s => s >= 9).length },
+    { range: '8-9', count: completedScores.filter(s => s >= 8 && s < 9).length },
+    { range: '7.5-8', count: completedScores.filter(s => s >= 7.5 && s < 8).length },
+    { range: '7-7.5', count: completedScores.filter(s => s >= 7 && s < 7.5).length },
+    { range: 'Below 7', count: completedScores.filter(s => s < 7).length }
   ];
+
+  const totalHabitsCount = habits.length;
+  const habitCompletionRate = {
+    topic: totalHabitsCount > 0 ? Math.round((habits.filter((h: any) => h.topicCompleted).length / totalHabitsCount) * 100) : 0,
+    quiz: totalHabitsCount > 0 ? Math.round((habits.filter((h: any) => h.quizAttended).length / totalHabitsCount) * 100) : 0,
+    newspaper: totalHabitsCount > 0 ? Math.round((habits.filter((h: any) => h.newspaperRead).length / totalHabitsCount) * 100) : 0,
+    exercise: totalHabitsCount > 0 ? Math.round((habits.filter((h: any) => h.exerciseDone).length / totalHabitsCount) * 100) : 0
+  };
 
   return {
     totalStudents,
@@ -389,21 +472,18 @@ export const getAdminAnalytics = async () => {
     pendingMentorApprovals,
     totalCourses,
     activeEnrollments: activeCourseEnrollments,
-    monthlyRevenue: 12500000,
+    monthlyRevenue,
     avgWeeklyScore: parseFloat(avgWeeklyScore.toFixed(1)),
-    dropoutRiskPercent: 18,
+    dropoutRiskPercent,
     userGrowth,
     courseEnrollments,
     scoreDistribution,
-    monthlyRevenueData: revenueMonthly,
+    monthlyRevenueData,
     courseRevenue,
-    topStudents: students.slice(0, 3).map(s => ({ name: s.name, score: s.totalScore, rank: s.rank, city: s.city })),
-    topMentors: mentors.slice(0, 3).map(m => ({ name: m.name, rating: m.rating, reviews: m.totalReviews, sessions: m.totalSessions })),
-    habitCompletionRate: {
-      topic: 84,
-      quiz: 79,
-      newspaper: 71,
-      exercise: 65
-    }
+    topStudents: students.sort((a: any, b: any) => (a.rank || 999) - (b.rank || 999)).slice(0, 3).map(s => ({ name: s.name, score: s.totalScore, rank: s.rank, city: s.city })),
+    topMentors: mentors.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0)).slice(0, 3).map(m => ({ name: m.name, rating: m.rating, reviews: m.totalReviews, sessions: m.totalSessions })),
+    habitCompletionRate
   };
 };
+
+

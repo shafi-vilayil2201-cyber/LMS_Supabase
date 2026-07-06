@@ -18,7 +18,7 @@ export default function ProfilePage() {
 
   if (!currentUser) return null;
 
-  function handleLogout() { logout(); setLocation("/login"); }
+  async function handleLogout() { await logout(); setLocation("/login"); }
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
