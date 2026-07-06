@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/user/features/auth/store/authStore";
 import { useLocation } from "wouter";
-import { User, MapPin, Phone, Mail, Calendar, Flame, Trophy, BookOpen, Award, LogOut } from "lucide-react";
+import { User, MapPin, Phone, Mail, Calendar, Flame, Trophy, BookOpen, Award, LogOut, MessageSquare, Send, CheckCircle } from "lucide-react";
 
 const NAVY = "#0A1628";
 const SAFFRON = "#009E2C";
@@ -116,6 +116,54 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Telegram Accountability Partner Integration */}
+      <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#229ED9]/10 flex items-center justify-center text-[#229ED9]">
+            <MessageSquare className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm" style={{ color: NAVY, fontFamily: "Inter, sans-serif" }}>Telegram Daily Accountability Bot</h3>
+            <p className="text-xs text-muted-foreground">Sync your daily roadmap, reminders, and progress logs</p>
+          </div>
+        </div>
+
+        {currentUser.telegram_chat_id ? (
+          <div className="rounded-xl bg-emerald-50 border border-emerald-200/50 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+              <CheckCircle className="w-4 h-4 text-emerald-500" />
+              Connected
+            </div>
+            <p className="text-xs text-emerald-800 leading-relaxed">
+              Your profile is linked to Telegram handle **{currentUser.telegram_username ? `@${currentUser.telegram_username}` : `Chat ID: ${currentUser.telegram_chat_id}`}**.
+              You will receive daily syllabus targets, habit tasks, and bedtime check-ins.
+            </p>
+            <div className="text-[10px] bg-emerald-100/50 rounded px-2 py-1 inline-block text-emerald-700 font-medium capitalize">
+              Onboarding: {currentUser.onboarding_status || "completed"}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-amber-50 border border-amber-200/50 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-amber-700">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              Bot Connection Pending
+            </div>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Connect our Telegram bot to activate your UPSC accountability loop. 
+              The bot will ask you 8 configuration questions (routine, bedtime, prep stage, strengths) to configure your daily baseline targets.
+            </p>
+            <a
+              href={`https://t.me/IGenLMS_bot?start=${currentUser.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl text-white px-4 text-xs font-bold bg-[#229ED9] hover:bg-[#1d8bcb] transition-colors"
+            >
+              <Send className="w-3.5 h-3.5" /> Start Telegram Bot Onboarding
+            </a>
+          </div>
+        )}
+      </div>
 
       {/* Logout */}
       <button onClick={handleLogout} data-testid="button-logout-profile"

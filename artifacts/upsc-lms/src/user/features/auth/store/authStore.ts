@@ -23,6 +23,9 @@ interface UserProfile {
   rating?: number;
   totalReviews?: number;
   bio?: string;
+  telegram_chat_id?: string;
+  telegram_username?: string;
+  onboarding_status?: 'pending' | 'in_progress' | 'completed';
   approvalStatus?: 'approved' | 'pending' | 'rejected';
   totalSessions?: number;
   studentsGuided?: number;
