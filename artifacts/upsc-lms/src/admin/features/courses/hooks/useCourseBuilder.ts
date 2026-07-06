@@ -3,15 +3,28 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getPrograms,
   createProgram,
+  updateProgram,
+  deleteProgram,
   getSubjects,
   createSubject,
+  updateSubject,
+  deleteSubject,
   createSubjectMonth,
+  updateSubjectMonth,
+  deleteSubjectMonth,
   createSubjectWeek,
+  updateSubjectWeek,
+  deleteSubjectWeek,
   createDayTopic,
+  updateDayTopic,
+  deleteDayTopic,
   getCoursesByProgram,
   createCourseForProgram,
+  updateCourse,
+  deleteCourse,
   getAttachedSubjects,
   attachSubjectToCourse,
+  detachSubjectFromCourse,
   getSubjectCurriculum,
   type Program,
   type Subject,
@@ -150,6 +163,122 @@ export function useCourseBuilder() {
     },
   });
 
+  const updateProgramMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: { name: string; code: string } }) =>
+      updateProgram(id, payload),
+    onSuccess: (program) => {
+      showStatus(`Program updated: ${program.name}`);
+      void queryClient.invalidateQueries({ queryKey: ["admin-programs"] });
+    },
+  });
+
+  const deleteProgramMutation = useMutation({
+    mutationFn: deleteProgram,
+    onSuccess: () => {
+      showStatus("Program deleted.");
+      setSelectedProgramId(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-programs"] });
+    },
+  });
+
+  const updateSubjectMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: { name: string; description: string; durationMonths: number } }) =>
+      updateSubject(id, payload),
+    onSuccess: (subject) => {
+      showStatus(`Subject updated: ${subject.name}`);
+      void queryClient.invalidateQueries({ queryKey: ["admin-subjects", selectedProgramId] });
+    },
+  });
+
+  const deleteSubjectMutation = useMutation({
+    mutationFn: deleteSubject,
+    onSuccess: () => {
+      showStatus("Subject deleted.");
+      setSelectedSubjectId(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-subjects", selectedProgramId] });
+    },
+  });
+
+  const updateMonthMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: { monthNumber: number; title: string } }) =>
+      updateSubjectMonth(id, payload),
+    onSuccess: (month) => {
+      showStatus(`Month updated: ${month.title}`);
+      void queryClient.invalidateQueries({ queryKey: ["admin-curriculum", selectedSubjectId] });
+    },
+  });
+
+  const deleteMonthMutation = useMutation({
+    mutationFn: deleteSubjectMonth,
+    onSuccess: () => {
+      showStatus("Month deleted.");
+      setSelectedMonthId(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-curriculum", selectedSubjectId] });
+    },
+  });
+
+  const updateWeekMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: { weekNumber: number; title: string } }) =>
+      updateSubjectWeek(id, payload),
+    onSuccess: (week) => {
+      showStatus(`Week updated: ${week.title}`);
+      void queryClient.invalidateQueries({ queryKey: ["admin-curriculum", selectedSubjectId] });
+    },
+  });
+
+  const deleteWeekMutation = useMutation({
+    mutationFn: deleteSubjectWeek,
+    onSuccess: () => {
+      showStatus("Week deleted.");
+      setSelectedWeekId(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-curriculum", selectedSubjectId] });
+    },
+  });
+
+  const updateDayTopicMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: { dayNumber: number; title: string; description: string; estimatedMinutes: number } }) =>
+      updateDayTopic(id, payload),
+    onSuccess: (topic) => {
+      showStatus(`Day topic updated: ${topic.title}`);
+      void queryClient.invalidateQueries({ queryKey: ["admin-curriculum", selectedSubjectId] });
+    },
+  });
+
+  const deleteDayTopicMutation = useMutation({
+    mutationFn: deleteDayTopic,
+    onSuccess: () => {
+      showStatus("Day topic deleted.");
+      void queryClient.invalidateQueries({ queryKey: ["admin-curriculum", selectedSubjectId] });
+    },
+  });
+
+  const updateCourseMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { title: string; description: string; durationMonths: number; price: number } }) =>
+      updateCourse(id, payload),
+    onSuccess: (course) => {
+      showStatus(`Course updated: ${course.title}`);
+      void queryClient.invalidateQueries({ queryKey: ["admin-courses", selectedProgramId] });
+    },
+  });
+
+  const deleteCourseMutation = useMutation({
+    mutationFn: deleteCourse,
+    onSuccess: () => {
+      showStatus("Course deleted.");
+      setSelectedCourseId(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-courses", selectedProgramId] });
+    },
+  });
+
+  const detachSubjectMutation = useMutation({
+    mutationFn: ({ courseId, subjectId }: { courseId: string; subjectId: number }) =>
+      detachSubjectFromCourse(courseId, subjectId),
+    onSuccess: () => {
+      showStatus("Subject detached from course.");
+      void queryClient.invalidateQueries({ queryKey: ["admin-attached-subjects", selectedCourseId] });
+    },
+  });
+
   // ── Refresh All ────────────────────────────────────────────────
 
   function refreshAll() {
@@ -227,12 +356,25 @@ export function useCourseBuilder() {
 
     // Mutations
     createProgramMutation,
+    updateProgramMutation,
+    deleteProgramMutation,
     createSubjectMutation,
+    updateSubjectMutation,
+    deleteSubjectMutation,
     createMonthMutation,
+    updateMonthMutation,
+    deleteMonthMutation,
     createWeekMutation,
+    updateWeekMutation,
+    deleteWeekMutation,
     createDayTopicMutation,
+    updateDayTopicMutation,
+    deleteDayTopicMutation,
     createCourseMutation,
+    updateCourseMutation,
+    deleteCourseMutation,
     attachSubjectMutation,
+    detachSubjectMutation,
 
     // Derived
     programs,

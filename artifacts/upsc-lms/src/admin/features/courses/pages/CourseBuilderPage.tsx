@@ -55,6 +55,8 @@ export default function CourseBuilderPage() {
               setSelectedProgramId={cb.setSelectedProgramId}
               isLoading={cb.programsQuery.isLoading}
               createMutation={cb.createProgramMutation}
+              updateMutation={cb.updateProgramMutation}
+              deleteMutation={cb.deleteProgramMutation}
             />
 
             <SubjectPanel
@@ -64,6 +66,8 @@ export default function CourseBuilderPage() {
               setSelectedSubjectId={cb.setSelectedSubjectId}
               isLoading={cb.subjectsQuery.isLoading}
               createMutation={cb.createSubjectMutation}
+              updateMutation={cb.updateSubjectMutation}
+              deleteMutation={cb.deleteSubjectMutation}
             />
           </div>
 
@@ -81,8 +85,14 @@ export default function CourseBuilderPage() {
               monthOptions={cb.monthOptions}
               weekOptions={cb.weekOptions}
               createMonthMutation={cb.createMonthMutation}
+              updateMonthMutation={cb.updateMonthMutation}
+              deleteMonthMutation={cb.deleteMonthMutation}
               createWeekMutation={cb.createWeekMutation}
+              updateWeekMutation={cb.updateWeekMutation}
+              deleteWeekMutation={cb.deleteWeekMutation}
               createDayTopicMutation={cb.createDayTopicMutation}
+              updateDayTopicMutation={cb.updateDayTopicMutation}
+              deleteDayTopicMutation={cb.deleteDayTopicMutation}
             />
 
             <div className="grid gap-5 xl:grid-cols-2">
@@ -93,6 +103,8 @@ export default function CourseBuilderPage() {
                 setSelectedCourseId={cb.setSelectedCourseId}
                 isLoading={cb.coursesQuery.isLoading}
                 createMutation={cb.createCourseMutation}
+                updateMutation={cb.updateCourseMutation}
+                deleteMutation={cb.deleteCourseMutation}
               />
 
               <AttachSubjectsPanel
@@ -102,6 +114,7 @@ export default function CourseBuilderPage() {
                 attachedSubjects={cb.attachedSubjects}
                 isLoading={cb.attachedSubjectsQuery.isLoading}
                 attachMutation={cb.attachSubjectMutation}
+                detachMutation={cb.detachSubjectMutation}
               />
             </div>
 

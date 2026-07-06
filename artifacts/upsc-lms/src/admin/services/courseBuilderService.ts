@@ -489,3 +489,229 @@ export async function attachSubjectToCourse(payload: {
     throw new Error(`Failed to attach subject: ${error.message}`);
   }
 }
+
+// ─── Update & Delete APIs ────────────────────────────────────────────────────
+
+export async function updateProgram(id: number, payload: { name: string; code: string }): Promise<Program> {
+  const name = assertTrimmedNotEmpty(payload.name, 'Program name');
+  const code = assertTrimmedNotEmpty(payload.code, 'Program code');
+
+  const { data, error } = await supabase
+    .from('programs')
+    .update({ name, code })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') throw new Error('A program with this name or code already exists.');
+    throw new Error(`Failed to update program: ${error.message}`);
+  }
+  return data;
+}
+
+export async function deleteProgram(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('programs')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to delete program: ${error.message}`);
+}
+
+export async function updateSubject(id: number, payload: {
+  name: string;
+  description: string;
+  durationMonths: number;
+}): Promise<Subject> {
+  const name = assertTrimmedNotEmpty(payload.name, 'Subject name');
+  assertMaxLength(name, 150, 'Subject name');
+  const description = payload.description.trim();
+  assertMaxLength(description, 1000, 'Subject description');
+  assertRange(payload.durationMonths, 1, 24, 'Duration months');
+
+  const { data, error } = await supabase
+    .from('subjects')
+    .update({
+      name,
+      description,
+      duration_months: payload.durationMonths,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') throw new Error('A subject with this name already exists in this program.');
+    throw new Error(`Failed to update subject: ${error.message}`);
+  }
+  return data;
+}
+
+export async function deleteSubject(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('subjects')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to delete subject: ${error.message}`);
+}
+
+export async function updateSubjectMonth(id: number, payload: {
+  monthNumber: number;
+  title: string;
+}): Promise<SubjectMonth> {
+  const title = assertTrimmedNotEmpty(payload.title, 'Month title');
+  assertMaxLength(title, 150, 'Month title');
+  assertRange(payload.monthNumber, 1, 24, 'Month number');
+
+  const { data, error } = await supabase
+    .from('subject_months')
+    .update({
+      month_number: payload.monthNumber,
+      title,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') throw new Error('A month with this number already exists in this subject.');
+    throw new Error(`Failed to update month: ${error.message}`);
+  }
+  return data;
+}
+
+export async function deleteSubjectMonth(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('subject_months')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to delete month: ${error.message}`);
+}
+
+export async function updateSubjectWeek(id: number, payload: {
+  weekNumber: number;
+  title: string;
+}): Promise<SubjectWeek> {
+  const title = assertTrimmedNotEmpty(payload.title, 'Week title');
+  assertMaxLength(title, 150, 'Week title');
+  assertRange(payload.weekNumber, 1, 6, 'Week number');
+
+  const { data, error } = await supabase
+    .from('subject_weeks')
+    .update({
+      week_number: payload.weekNumber,
+      title,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') throw new Error('A week with this number already exists in this month.');
+    throw new Error(`Failed to update week: ${error.message}`);
+  }
+  return data;
+}
+
+export async function deleteSubjectWeek(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('subject_weeks')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to delete week: ${error.message}`);
+}
+
+export async function updateDayTopic(id: number, payload: {
+  dayNumber: number;
+  title: string;
+  description: string;
+  estimatedMinutes: number;
+}): Promise<SubjectDayTopic> {
+  const title = assertTrimmedNotEmpty(payload.title, 'Day topic title');
+  assertMaxLength(title, 200, 'Day topic title');
+  const description = payload.description.trim();
+  assertMaxLength(description, 2000, 'Day topic description');
+  assertRange(payload.dayNumber, 1, 7, 'Day number');
+  assertRange(payload.estimatedMinutes, 1, 600, 'Estimated minutes');
+
+  const { data, error } = await supabase
+    .from('subject_day_topics')
+    .update({
+      day_number: payload.dayNumber,
+      title,
+      description,
+      estimated_minutes: payload.estimatedMinutes,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') throw new Error('A topic with this day number already exists in this week.');
+    throw new Error(`Failed to update day topic: ${error.message}`);
+  }
+  return data;
+}
+
+export async function deleteDayTopic(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('subject_day_topics')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to delete day topic: ${error.message}`);
+}
+
+export async function updateCourse(id: string, payload: {
+  title: string;
+  description: string;
+  durationMonths: number;
+  price: number;
+}): Promise<CourseWithProgramId> {
+  const title = assertTrimmedNotEmpty(payload.title, 'Course title');
+  assertMaxLength(title, 200, 'Course title');
+  const description = payload.description.trim();
+  assertMaxLength(description, 2000, 'Course description');
+  assertRange(payload.durationMonths, 1, 36, 'Duration months');
+  assertPositive(payload.price, 'Price');
+
+  const { data, error } = await supabase
+    .from('courses')
+    .update({
+      title,
+      description,
+      duration_months: payload.durationMonths,
+      price: payload.price,
+      duration: `${payload.durationMonths} months`,
+    })
+    .eq('id', id)
+    .select('id, title, description, program_id, duration_months, price, status')
+    .single();
+
+  if (error) throw new Error(`Failed to update course: ${error.message}`);
+  return data as CourseWithProgramId;
+}
+
+export async function deleteCourse(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('courses')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to delete course: ${error.message}`);
+}
+
+export async function detachSubjectFromCourse(courseId: string, subjectId: number): Promise<void> {
+  const { error } = await supabase
+    .from('course_subjects')
+    .delete()
+    .eq('course_id', courseId)
+    .eq('subject_id', subjectId);
+
+  if (error) throw new Error(`Failed to detach subject: ${error.message}`);
+}
+
