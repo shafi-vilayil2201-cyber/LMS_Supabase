@@ -80,6 +80,7 @@ export default function CourseDetailPage() {
   const [blocks, setBlocks] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"curriculum" | "about">("curriculum");
   const [loading, setLoading] = useState(true);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   // Enrollment Loading
   const [enrolling, setEnrolling] = useState(false);
@@ -109,11 +110,110 @@ export default function CourseDetailPage() {
       const [courses, wb] = await Promise.all([getCourses(), getWeeklyBlocks()]);
       const found = courses.find((c: any) => c.id === params.id);
       setCourse(found);
-      setBlocks(wb.filter((b: any) => b.courseId === params.id).sort((a: any, b: any) => a.weekNumber - b.weekNumber));
-      setLoading(false);
+      
+      const staticBlocks = wb.filter((b: any) => b.courseId === params.id).sort((a: any, b: any) => a.weekNumber - b.weekNumber);
+      
+      if (staticBlocks.length > 0) {
+        setBlocks(staticBlocks);
+        setLoading(false);
+      } else if (found) {
+        // Construct journey blocks dynamically from attached subjects & curriculum trees!
+        try {
+          const { data: attachedSubjects } = await supabase
+            .from("course_subjects")
+            .select(`
+              subject_id,
+              display_order,
+              start_month
+            `)
+            .eq("course_id", found.id)
+            .order("display_order", { ascending: true });
+            
+          const subjectIds = (attachedSubjects || []).map((s: any) => s.subject_id);
+          
+          if (subjectIds.length > 0) {
+            // Fetch months
+            const { data: monthsData } = await supabase
+              .from("subject_months")
+              .select("*")
+              .in("subject_id", subjectIds)
+              .order("month_number", { ascending: true });
+              
+            const monthIds = (monthsData || []).map((m: any) => m.id);
+            
+            let allWeeks: any[] = [];
+            let allDayTopics: any[] = [];
+            
+            if (monthIds.length > 0) {
+              // Fetch weeks
+              const { data: weeksData } = await supabase
+                .from("subject_weeks")
+                .select("*")
+                .in("subject_month_id", monthIds)
+                .order("week_number", { ascending: true });
+              allWeeks = weeksData || [];
+              
+              const weekIds = allWeeks.map((w: any) => w.id);
+              if (weekIds.length > 0) {
+                // Fetch day topics
+                const { data: daysData } = await supabase
+                  .from("subject_day_topics")
+                  .select("*")
+                  .in("subject_week_id", weekIds)
+                  .order("day_number", { ascending: true });
+                allDayTopics = daysData || [];
+              }
+            }
+            
+            // Assemble dynamic sequence of weeks
+            let sequenceWeeks: any[] = [];
+            let globalWeekCounter = 1;
+            const currentWeekNum = currentUser?.currentWeek || 1;
+            
+            (attachedSubjects || []).forEach((subj: any) => {
+              const subjMonths = (monthsData || []).filter((m: any) => m.subject_id === subj.subject_id);
+              subjMonths.forEach((month: any) => {
+                const monthWeeks = allWeeks.filter((w: any) => w.subject_month_id === month.id);
+                monthWeeks.forEach((week: any) => {
+                  const weekDays = allDayTopics.filter((d: any) => d.subject_week_id === week.id);
+                  
+                  // Load simulated/saved score overrides if any
+                  const scoreOverrideKey = `igen-weekly-score-${found.id}-${globalWeekCounter}`;
+                  const savedScores = JSON.parse(localStorage.getItem(scoreOverrideKey) || "{}");
+                  
+                  sequenceWeeks.push({
+                    id: `week-${week.id}`,
+                    weekNumber: globalWeekCounter,
+                    monthNumber: Math.ceil(globalWeekCounter / 4),
+                    title: week.title,
+                    topics: weekDays.map((d: any) => d.title),
+                    status: globalWeekCounter < currentWeekNum ? "completed" : globalWeekCounter === currentWeekNum ? "active" : "locked",
+                    disciplineScore: savedScores.disciplineScore !== undefined ? savedScores.disciplineScore : 0.0,
+                    reviewScore: savedScores.reviewScore !== undefined ? savedScores.reviewScore : 0.0,
+                  });
+                  
+                  globalWeekCounter++;
+                });
+              });
+            });
+            
+            setBlocks(sequenceWeeks);
+          } else {
+            setBlocks([]);
+          }
+        } catch (err) {
+          console.error("Error generating dynamic learning path blocks:", err);
+          setBlocks([]);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setBlocks([]);
+        setLoading(false);
+      }
     }
     load();
-  }, [params.id]);
+  }, [params.id, currentUser, reloadTrigger]);
 
   if (loading) {
     return (
@@ -182,19 +282,17 @@ export default function CourseDetailPage() {
         
       if (userError) throw userError;
 
-      // Update block state to completed in database
-      const { error: blockError } = await supabase
-        .from("weekly_blocks")
-        .update({ status: "completed" })
-        .eq("id", currentBlock.id);
+      // Update block state to completed in database (if static block)
+      if (!currentBlock.id.startsWith("week-")) {
+        const { error: blockError } = await supabase
+          .from("weekly_blocks")
+          .update({ status: "completed" })
+          .eq("id", currentBlock.id);
+        if (blockError) console.warn("Could not update static weekly_block status:", blockError.message);
+      }
 
-      if (blockError) throw blockError;
-
-      // Force reload page data
-      const wb = await getWeeklyBlocks();
-      setBlocks(wb.filter((b: any) => b.courseId === params.id).sort((a: any, b: any) => a.weekNumber - b.weekNumber));
-      
       await refreshUser();
+      setReloadTrigger(prev => prev + 1);
       toast({ title: "Week Unlocked! 🎉", description: `You have advanced to Week ${nextWeek}!` });
     } catch (err: any) {
       toast({ title: "Unlock Failed", description: err.message, variant: "destructive" });
@@ -206,19 +304,27 @@ export default function CourseDetailPage() {
   // ─── Simulation Trigger for Mentor Review ──────────────────────────────────
   const handleSimulateMentorReviewPass = async (currentBlock: any) => {
     try {
-      const { error } = await supabase
-        .from("weekly_blocks")
-        .update({
-          disciplineScore: 4.0,
-          reviewScore: 3.0,
-          status: "in_review"
-        })
-        .eq("id", currentBlock.id);
+      // If static block, update Supabase
+      if (!currentBlock.id.startsWith("week-")) {
+        const { error } = await supabase
+          .from("weekly_blocks")
+          .update({
+            disciplineScore: 4.0,
+            reviewScore: 3.0,
+            status: "in_review"
+          })
+          .eq("id", currentBlock.id);
+        if (error) console.warn("Could not update static block score:", error.message);
+      }
 
-      if (error) throw error;
-      
-      const wb = await getWeeklyBlocks();
-      setBlocks(wb.filter((b: any) => b.courseId === params.id).sort((a: any, b: any) => a.weekNumber - b.weekNumber));
+      // Always save locally in localStorage as a fallback/override
+      const scoreOverrideKey = `igen-weekly-score-${course.id}-${currentBlock.weekNumber}`;
+      localStorage.setItem(
+        scoreOverrideKey,
+        JSON.stringify({ disciplineScore: 4.0, reviewScore: 3.0 })
+      );
+
+      setReloadTrigger(prev => prev + 1);
       toast({ title: "Simulation Success", description: "Mentor Review passed with 100% score! Click Conquer & Advance to unlock next week." });
     } catch (err: any) {
       toast({ title: "Simulation Failed", description: err.message, variant: "destructive" });

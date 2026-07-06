@@ -4,6 +4,8 @@ import { getWeeklyBlocks, getCourses } from "@/shared/services/db";
 import { ChevronLeft, CheckCircle, Lock, BookOpen, FileText, Calendar, AlertTriangle } from "lucide-react";
 import { useToast } from "@/shared/hooks/use-toast";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { supabase } from "@/shared/lib/supabaseClient";
+import { useAuthStore } from "@/user/features/auth/store/authStore";
 
 const NAVY = "#0A1628";
 const SAFFRON = "#009E2C";
@@ -28,15 +30,105 @@ export default function WeeklyCoursePage() {
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
+  const { currentUser } = useAuthStore();
+
   useEffect(() => {
     async function load() {
       const [blocks, courses] = await Promise.all([getWeeklyBlocks(), getCourses()]);
-      const b = blocks.find((wb: any) => wb.id === params.weekId);
       const c = courses.find((co: any) => co.id === params.id);
-      setBlock(b); setCourse(c); setLoading(false);
+      setCourse(c);
+      
+      let b = blocks.find((wb: any) => wb.id === params.weekId);
+      
+      // Reconstruct dynamic week blocks if not found in seeded db table
+      if (!b && params.weekId.startsWith("week-")) {
+        try {
+          const weekDbId = Number(params.weekId.replace("week-", ""));
+          
+          // 1. Fetch details of the week
+          const { data: weekRow } = await supabase
+            .from("subject_weeks")
+            .select("*")
+            .eq("id", weekDbId)
+            .single();
+            
+          if (weekRow) {
+            // 2. Fetch daily topics
+            const { data: topicsRows } = await supabase
+              .from("subject_day_topics")
+              .select("*")
+              .eq("subject_week_id", weekDbId)
+              .order("day_number", { ascending: true });
+              
+            // 3. Resolve the sequential week number across the course
+            const { data: attachedSubjects } = await supabase
+              .from("course_subjects")
+              .select("subject_id")
+              .eq("course_id", params.id)
+              .order("display_order", { ascending: true });
+              
+            const subjectIds = (attachedSubjects || []).map((s: any) => s.subject_id);
+            
+            let globalWeekNumber = 1;
+            let resolvedWeekNumber = 1;
+            
+            if (subjectIds.length > 0) {
+              const { data: monthsData } = await supabase
+                .from("subject_months")
+                .select("id, subject_id")
+                .in("subject_id", subjectIds)
+                .order("month_number", { ascending: true });
+                
+              const monthIds = (monthsData || []).map((m: any) => m.id);
+              if (monthIds.length > 0) {
+                const { data: weeksData } = await supabase
+                  .from("subject_weeks")
+                  .select("id, subject_month_id")
+                  .in("subject_month_id", monthIds)
+                  .order("week_number", { ascending: true });
+                  
+                // Trace sequence to resolve week number
+                (attachedSubjects || []).forEach((subj: any) => {
+                  const subjMonths = (monthsData || []).filter((m: any) => m.subject_id === subj.subject_id);
+                  subjMonths.forEach((month: any) => {
+                    const monthWeeks = (weeksData || []).filter((w: any) => w.subject_month_id === month.id);
+                    monthWeeks.forEach((w: any) => {
+                      if (w.id === weekDbId) {
+                        resolvedWeekNumber = globalWeekNumber;
+                      }
+                      globalWeekNumber++;
+                    });
+                  });
+                });
+              }
+            }
+            
+            // Load saved simulated review scores
+            const scoreOverrideKey = `igen-weekly-score-${params.id}-${resolvedWeekNumber}`;
+            const savedScores = JSON.parse(localStorage.getItem(scoreOverrideKey) || "{}");
+            const currentWeekNum = currentUser?.currentWeek || 1;
+            
+            b = {
+              id: params.weekId,
+              weekNumber: resolvedWeekNumber,
+              monthNumber: Math.ceil(resolvedWeekNumber / 4),
+              title: weekRow.title,
+              topics: (topicsRows || []).map((t: any) => t.title),
+              status: resolvedWeekNumber < currentWeekNum ? "completed" : resolvedWeekNumber === currentWeekNum ? "active" : "locked",
+              disciplineScore: savedScores.disciplineScore !== undefined ? savedScores.disciplineScore : 0.0,
+              reviewScore: savedScores.reviewScore !== undefined ? savedScores.reviewScore : 0.0,
+            };
+          }
+        } catch (err) {
+          console.error("Error loading dynamic week details:", err);
+        }
+      }
+      
+      setBlock(b);
+      setLoading(false);
     }
     load();
-  }, [params.id, params.weekId]);
+  }, [params.id, params.weekId, currentUser]);
 
   function toggleTask(key: string) {
     setCompleted((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
