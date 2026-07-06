@@ -52,15 +52,15 @@ export default function ProgramPanel({
               onClick={() => setSelectedProgramId(program.id)}
               className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition ${
                 selectedProgramId === program.id
-                  ? "border-[#009E2C] bg-[#009E2C]/10"
-                  : "border-slate-200 hover:bg-slate-50"
+                  ? "border-[#009E2C] bg-[#009E2C]/10 text-foreground"
+                  : "border-border bg-card text-foreground hover:bg-muted"
               }`}
             >
               <span>
-                <span className="block font-semibold text-slate-900">
+                <span className="block font-semibold text-foreground">
                   {program.name}
                 </span>
-                <span className="text-xs text-slate-500">{program.code}</span>
+                <span className="text-xs text-muted-foreground">{program.code}</span>
               </span>
               {selectedProgramId === program.id && (
                 <CheckCircle className="h-4 w-4 text-[#009E2C]" />

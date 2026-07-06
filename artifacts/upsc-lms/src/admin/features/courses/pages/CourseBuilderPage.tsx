@@ -10,22 +10,22 @@ export default function CourseBuilderPage() {
   const cb = useCourseBuilder();
 
   return (
-    <div className="min-h-screen bg-[#F4F7FB]">
+    <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
         {/* ── Header ──────────────────────────────────────────────── */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold" style={{ color: NAVY }}>
+            <h1 className="text-3xl font-bold text-foreground">
               Course Builder
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Create programs, subjects, curriculum trees, and courses from one workspace.
             </p>
           </div>
           <button
             type="button"
             onClick={cb.refreshAll}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground transition hover:bg-muted"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
@@ -34,13 +34,13 @@ export default function CourseBuilderPage() {
 
         {/* ── Banners ─────────────────────────────────────────────── */}
         {cb.statusMessage && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
             {cb.statusMessage}
           </div>
         )}
 
         {cb.activeError && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {getErrorMessage(cb.activeError)}
           </div>
         )}
@@ -106,13 +106,13 @@ export default function CourseBuilderPage() {
             </div>
 
             {/* Info Footer */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-border bg-card p-4">
               <div className="flex items-start gap-3">
                 <div
                   className="mt-0.5 h-2 w-2 rounded-full"
                   style={{ background: TEAL }}
                 />
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   All data is persisted to Supabase. Subjects can be reused across
                   multiple courses within the same program.
                 </p>

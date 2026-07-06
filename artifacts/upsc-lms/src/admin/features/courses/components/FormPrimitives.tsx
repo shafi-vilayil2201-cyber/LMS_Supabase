@@ -13,7 +13,7 @@ export function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-3xl border border-border bg-card text-card-foreground p-5 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
         <div
           className="flex h-9 w-9 items-center justify-center rounded-xl"
@@ -21,7 +21,7 @@ export function Panel({
         >
           <Icon className="h-4 w-4" style={{ color: GREEN }} />
         </div>
-        <h2 className="text-base font-bold" style={{ color: NAVY }}>
+        <h2 className="text-base font-bold text-foreground">
           {title}
         </h2>
       </div>
@@ -51,7 +51,7 @@ export function Field({
 }) {
   return (
     <label className="space-y-1.5 block">
-      <span className="text-xs font-semibold text-slate-500">{label}</span>
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
       <input
         name={name}
         type={type}
@@ -59,7 +59,7 @@ export function Field({
         max={max}
         required={required}
         placeholder={placeholder}
-        className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-[#009E2C] focus:ring-4 focus:ring-[#009E2C]/15"
+        className="h-10 w-full rounded-xl border border-input bg-background text-foreground px-3 text-sm outline-none transition focus:border-[#009E2C] focus:ring-4 focus:ring-[#009E2C]/15"
       />
     </label>
   );
@@ -80,12 +80,12 @@ export function TextArea({
 }) {
   return (
     <label className="space-y-1.5 block">
-      <span className="text-xs font-semibold text-slate-500">{label}</span>
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
       <textarea
         name={name}
         required={required}
         placeholder={placeholder}
-        className="min-h-24 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#009E2C] focus:ring-4 focus:ring-[#009E2C]/15"
+        className="min-h-24 w-full rounded-xl border border-input bg-background text-foreground px-3 py-2 text-sm outline-none transition focus:border-[#009E2C] focus:ring-4 focus:ring-[#009E2C]/15"
       />
     </label>
   );
@@ -130,15 +130,15 @@ export function SelectField({
 }) {
   return (
     <label className="space-y-1.5 block">
-      <span className="text-xs font-semibold text-slate-500">{label}</span>
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
       <select
         value={value ?? ""}
         onChange={(e) => onChange(Number(e.target.value) || null)}
-        className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none"
+        className="h-10 w-full rounded-xl border border-input bg-background text-foreground px-3 text-sm outline-none"
       >
-        <option value="">{placeholder}</option>
+        <option value="" className="bg-background text-foreground">{placeholder}</option>
         {options.map((opt) => (
-          <option key={opt.id} value={opt.id}>
+          <option key={opt.id} value={opt.id} className="bg-background text-foreground">
             {opt.label}
           </option>
         ))}

@@ -54,9 +54,9 @@ export function CourseCreationPanel({
 
       <div className="mt-5 space-y-2">
         {isLoading ? (
-          <p className="text-sm text-slate-500">Loading courses…</p>
+          <p className="text-sm text-muted-foreground animate-pulse">Loading courses…</p>
         ) : courses.length === 0 ? (
-          <p className="text-sm text-slate-500">No courses in this program yet.</p>
+          <p className="text-sm text-muted-foreground">No courses in this program yet.</p>
         ) : (
           courses.map((course) => (
             <button
@@ -65,14 +65,14 @@ export function CourseCreationPanel({
               onClick={() => setSelectedCourseId(course.id)}
               className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
                 selectedCourseId === course.id
-                  ? "border-[#009E2C] bg-[#009E2C]/10"
-                  : "border-slate-200 hover:bg-slate-50"
+                  ? "border-[#009E2C] bg-[#009E2C]/10 text-foreground"
+                  : "border-border bg-card text-foreground hover:bg-muted"
               }`}
             >
-              <span className="block font-semibold text-slate-900">
+              <span className="block font-semibold text-foreground">
                 {course.title}
               </span>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted-foreground">
                 {course.duration_months} months · ₹
                 {(course.price ?? 0).toLocaleString("en-IN")} · {course.status}
               </span>
@@ -118,22 +118,22 @@ export function AttachSubjectsPanel({
 
   return (
     <Panel title="Attach Subjects" icon={Link2}>
-      <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-        <span className="font-semibold text-slate-900">Selected course:</span>{" "}
-        <span className="text-slate-500">{selectedCourseName ?? "None"}</span>
+      <div className="mb-4 rounded-xl border border-border bg-muted/50 px-3 py-2 text-sm">
+        <span className="font-semibold text-foreground">Selected course:</span>{" "}
+        <span className="text-muted-foreground">{selectedCourseName ?? "None"}</span>
       </div>
 
       <form className="space-y-3" onSubmit={handleSubmit}>
         <label className="space-y-1.5 block">
-          <span className="text-xs font-semibold text-slate-500">Subject</span>
+          <span className="text-xs font-semibold text-muted-foreground">Subject</span>
           <select
             name="subjectId"
             required
-            className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none"
+            className="h-10 w-full rounded-xl border border-input bg-background text-foreground px-3 text-sm outline-none"
           >
-            <option value="">Select subject</option>
+            <option value="" className="bg-background text-foreground">Select subject</option>
             {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
+              <option key={subject.id} value={subject.id} className="bg-background text-foreground">
                 {subject.name}
               </option>
             ))}
@@ -154,23 +154,23 @@ export function AttachSubjectsPanel({
 
       <div className="mt-5 space-y-2">
         {isLoading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <p className="text-sm text-muted-foreground animate-pulse">Loading…</p>
         ) : attachedSubjects.length > 0 ? (
           attachedSubjects.map((subject) => (
             <div
               key={`${subject.subject_id}-${subject.display_order}`}
-              className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+              className="rounded-xl border border-border bg-muted/30 p-3"
             >
-              <p className="text-sm font-semibold text-slate-900">
+              <p className="text-sm font-semibold text-foreground">
                 {subject.subject_name}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 Order {subject.display_order} · starts month {subject.start_month}
               </p>
             </div>
           ))
         ) : (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             No subjects attached to this course yet.
           </p>
         )}

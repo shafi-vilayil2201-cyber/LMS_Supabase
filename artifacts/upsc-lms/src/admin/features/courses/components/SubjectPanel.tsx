@@ -60,13 +60,13 @@ export default function SubjectPanel({
 
       <div className="mt-5 space-y-2">
         {selectedProgramId === null ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             Select a program to manage subjects.
           </p>
         ) : isLoading ? (
-          <p className="text-sm text-slate-500">Loading subjects…</p>
+          <p className="text-sm text-muted-foreground animate-pulse">Loading subjects…</p>
         ) : subjects.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             No subjects in this program yet.
           </p>
         ) : (
@@ -77,14 +77,14 @@ export default function SubjectPanel({
               onClick={() => setSelectedSubjectId(subject.id)}
               className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
                 selectedSubjectId === subject.id
-                  ? "border-[#009E2C] bg-[#009E2C]/10"
-                  : "border-slate-200 hover:bg-slate-50"
+                  ? "border-[#009E2C] bg-[#009E2C]/10 text-foreground"
+                  : "border-border bg-card text-foreground hover:bg-muted"
               }`}
             >
-              <span className="block font-semibold text-slate-900">
+              <span className="block font-semibold text-foreground">
                 {subject.name}
               </span>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted-foreground">
                 {subject.duration_months} months
                 {subject.is_published ? " • Published" : " • Draft"}
               </span>
