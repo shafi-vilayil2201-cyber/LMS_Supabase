@@ -8,7 +8,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { useAuthStore } from "@/user/features/auth/store/authStore";
 
 const NAVY = "#0A1628";
-const SAFFRON = "#009E2C";
+const SAFFRON = "#26392bff";
 const GOLD = "#009E2C";
 const TEAL = "#1A7F8E";
 
@@ -37,21 +37,21 @@ export default function WeeklyCoursePage() {
       const [blocks, courses] = await Promise.all([getWeeklyBlocks(), getCourses()]);
       const c = courses.find((co: any) => co.id === params.id);
       setCourse(c);
-      
+
       let b = blocks.find((wb: any) => wb.id === params.weekId);
-      
+
       // Reconstruct dynamic week blocks if not found in seeded db table
       if (!b && params.weekId.startsWith("week-")) {
         try {
           const weekDbId = Number(params.weekId.replace("week-", ""));
-          
+
           // 1. Fetch details of the week
           const { data: weekRow } = await supabase
             .from("subject_weeks")
             .select("*")
             .eq("id", weekDbId)
             .single();
-            
+
           if (weekRow) {
             // 2. Fetch daily topics
             const { data: topicsRows } = await supabase
@@ -59,26 +59,37 @@ export default function WeeklyCoursePage() {
               .select("*")
               .eq("subject_week_id", weekDbId)
               .order("day_number", { ascending: true });
-              
+
             // 3. Resolve the sequential week number across the course
             const { data: attachedSubjects } = await supabase
               .from("course_subjects")
               .select("subject_id")
               .eq("course_id", params.id)
               .order("display_order", { ascending: true });
-              
-            const subjectIds = (attachedSubjects || []).map((s: any) => s.subject_id);
-            
+
+            let subjectIds = (attachedSubjects || []).map((s: any) => s.subject_id);
+            let resolvedAttached = (attachedSubjects || []).map((s: any) => ({ subject_id: s.subject_id }));
+
+            if (subjectIds.length === 0 && c?.program_id) {
+              const { data: programSubjects } = await supabase
+                .from("subjects")
+                .select("id")
+                .eq("program_id", c.program_id)
+                .order("id", { ascending: true });
+              subjectIds = (programSubjects || []).map((s: any) => s.id);
+              resolvedAttached = (programSubjects || []).map((s: any) => ({ subject_id: s.id }));
+            }
+
             let globalWeekNumber = 1;
             let resolvedWeekNumber = 1;
-            
+
             if (subjectIds.length > 0) {
               const { data: monthsData } = await supabase
                 .from("subject_months")
                 .select("id, subject_id")
                 .in("subject_id", subjectIds)
                 .order("month_number", { ascending: true });
-                
+
               const monthIds = (monthsData || []).map((m: any) => m.id);
               if (monthIds.length > 0) {
                 const { data: weeksData } = await supabase
@@ -86,9 +97,9 @@ export default function WeeklyCoursePage() {
                   .select("id, subject_month_id")
                   .in("subject_month_id", monthIds)
                   .order("week_number", { ascending: true });
-                  
+
                 // Trace sequence to resolve week number
-                (attachedSubjects || []).forEach((subj: any) => {
+                resolvedAttached.forEach((subj: any) => {
                   const subjMonths = (monthsData || []).filter((m: any) => m.subject_id === subj.subject_id);
                   subjMonths.forEach((month: any) => {
                     const monthWeeks = (weeksData || []).filter((w: any) => w.subject_month_id === month.id);
@@ -102,12 +113,12 @@ export default function WeeklyCoursePage() {
                 });
               }
             }
-            
+
             // Load saved simulated review scores
             const scoreOverrideKey = `igen-weekly-score-${params.id}-${resolvedWeekNumber}`;
             const savedScores = JSON.parse(localStorage.getItem(scoreOverrideKey) || "{}");
             const currentWeekNum = currentUser?.currentWeek || 1;
-            
+
             b = {
               id: params.weekId,
               weekNumber: resolvedWeekNumber,
@@ -123,7 +134,7 @@ export default function WeeklyCoursePage() {
           console.error("Error loading dynamic week details:", err);
         }
       }
-      
+
       setBlock(b);
       setLoading(false);
     }
@@ -259,8 +270,7 @@ export default function WeeklyCoursePage() {
                       <td key={cell.key} className="py-3 px-3 text-center">
                         <button onClick={() => toggleTask(cell.key)}
                           data-testid={`task-${cell.key}`}
-                          className={`w-full py-1.5 px-2 rounded-lg text-xs transition-all border ${
-                            done ? "border-green-200 bg-green-50 text-green-700" : "border-border bg-muted/30 text-muted-foreground hover:bg-muted"}`}>
+                          className={`w-full py-1.5 px-2 rounded-lg text-xs transition-all border ${done ? "border-green-200 bg-green-50 text-green-700" : "border-border bg-muted/30 text-muted-foreground hover:bg-muted"}`}>
                           {done ? <CheckCircle className="w-3.5 h-3.5 inline mr-1 text-green-500" /> : null}
                           {done ? "Done" : cell.desc}
                         </button>

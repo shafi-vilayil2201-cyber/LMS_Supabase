@@ -129,7 +129,28 @@ export default function CourseDetailPage() {
             .eq("course_id", found.id)
             .order("display_order", { ascending: true });
             
-          const subjectIds = (attachedSubjects || []).map((s: any) => s.subject_id);
+          let subjectIds = (attachedSubjects || []).map((s: any) => s.subject_id);
+          let resolvedAttachedList = (attachedSubjects || []).map((s: any) => ({
+            subject_id: s.subject_id,
+            display_order: s.display_order,
+            start_month: s.start_month,
+          }));
+
+          // Fallback to program subjects if no explicit course-subjects mappings exist
+          if (subjectIds.length === 0 && found.program_id) {
+            const { data: programSubjects } = await supabase
+              .from("subjects")
+              .select("id")
+              .eq("program_id", found.program_id)
+              .order("id", { ascending: true });
+              
+            subjectIds = (programSubjects || []).map((s: any) => s.id);
+            resolvedAttachedList = (programSubjects || []).map((s: any, idx: number) => ({
+              subject_id: s.id,
+              display_order: idx + 1,
+              start_month: 1,
+            }));
+          }
           
           if (subjectIds.length > 0) {
             // Fetch months
@@ -170,7 +191,7 @@ export default function CourseDetailPage() {
             let globalWeekCounter = 1;
             const currentWeekNum = currentUser?.currentWeek || 1;
             
-            (attachedSubjects || []).forEach((subj: any) => {
+            resolvedAttachedList.forEach((subj: any) => {
               const subjMonths = (monthsData || []).filter((m: any) => m.subject_id === subj.subject_id);
               subjMonths.forEach((month: any) => {
                 const monthWeeks = allWeeks.filter((w: any) => w.subject_month_id === month.id);
@@ -419,7 +440,7 @@ export default function CourseDetailPage() {
         style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #0f2545 100%)` }}>
         <div className="absolute right-8 top-8 opacity-10"><BookOpen className="w-32 h-32" /></div>
         <span className="text-xs px-2.5 py-1 rounded-full bg-white/10 text-white/70 font-medium">{course.category}</span>
-        <h1 className="text-2xl font-bold mt-3 mb-2 max-w-2xl" style={{ fontFamily: "Inter, sans-serif" }}>{course.title}</h1>
+        <h1 className="text-2xl font-bold mt-3 mb-2 max-w-2xl text-white" style={{ fontFamily: "Inter, sans-serif", color: "white" }}>{course.title}</h1>
         <p className="text-white/60 text-sm mb-5 max-w-2xl leading-relaxed">{course.description}</p>
         <div className="flex flex-wrap items-center gap-5 text-sm">
           <span className="flex items-center gap-1.5 text-white/70"><Star className="w-4 h-4" fill={GOLD} stroke={GOLD} />{course.rating} rating</span>
