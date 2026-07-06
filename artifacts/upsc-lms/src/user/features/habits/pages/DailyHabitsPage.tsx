@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useAuthStore } from "@/user/features/auth/store/authStore";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { postToN8n } from "@/shared/lib/n8nClient";
 import {
   BookOpen,
   FileText,
@@ -344,7 +345,22 @@ export default function DailyHabitsPage() {
           newspaperHeadlines: serializedData,
         }, { onConflict: "userId,date" });
         
-      if (error) throw error;
+       if (error) throw error;
+      
+      // Dispatch task progress to n8n points engine
+      void postToN8n("progress", {
+        eventType: "habit_completed",
+        userId: currentUser.id,
+        telegramChatId: currentUser.telegram_chat_id || null,
+        source: "website",
+        metadata: {
+          scoreDelta: score,
+          isCompleted: true,
+          date: todayStr,
+          habitsSummary: updatedHabits.map(h => ({ id: h.id, title: h.title, completed: h.isCompletedToday })),
+        }
+      });
+
       setSyncStatus(null);
     } catch (err: any) {
       console.warn("Could not sync with Supabase daily_habits table, saving locally:", err.message);

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { User as AuthUser } from '@supabase/supabase-js';
+import { postToN8n } from '@/shared/lib/n8nClient';
 
 interface UserProfile {
   id: string;
@@ -157,6 +158,24 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       if (error) {
         set({ isLoading: false });
         return { success: false, error: error.message };
+      }
+
+      if (data?.user) {
+        // Trigger n8n onboarding webhook asynchronously
+        void postToN8n("onboarding", {
+          eventType: "onboarding_start",
+          userId: data.user.id,
+          telegramChatId: null,
+          source: "website",
+          metadata: {
+            email,
+            name: (profile as any).name || "",
+            targetProgram: "UPSC CSE 2025",
+            yearsPreparing: (profile as any).yearsPreparing || 1,
+            dailyRoutine: (profile as any).dailyRoutine || "full-time",
+            bedtimeTarget: (profile as any).bedtimeTarget || "22:30",
+          },
+        });
       }
 
       set({ isLoading: false });

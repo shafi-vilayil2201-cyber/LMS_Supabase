@@ -1,6 +1,7 @@
 import { Bell, Search } from "lucide-react";
 import { useAuthStore } from "@/user/features/auth/store/authStore";
 import { ThemeToggle } from "@/shared/components/ThemeToggle";
+import AutomationStatus from "@/shared/components/AutomationStatus";
 
 export default function UserTopbar() {
   const { currentUser } = useAuthStore();
@@ -20,7 +21,8 @@ export default function UserTopbar() {
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <span className="text-xs text-muted-foreground hidden md:block">{today}</span>
+        <span className="text-xs text-muted-foreground hidden lg:block">{today}</span>
+        <AutomationStatus />
         <ThemeToggle />
         <button
           data-testid="button-notifications"

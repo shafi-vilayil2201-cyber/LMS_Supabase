@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { postToN8n } from '../lib/n8nClient';
 
 // ── Read APIs ────────────────────────────────────────────────────────────────
 
@@ -150,7 +151,25 @@ export const bookSession = async (session: any) => {
     console.error('Error booking session:', error);
     throw error;
   }
-  return data?.[0];
+  
+  const booked = data?.[0];
+  if (booked) {
+    // Notify n8n session booking webhook
+    void postToN8n("student_event", {
+      eventType: "session_booking",
+      userId: booked.studentId,
+      telegramChatId: null,
+      source: "website",
+      metadata: {
+        sessionId: booked.id,
+        mentorId: booked.mentorId,
+        scheduledAt: booked.scheduledAt,
+        status: booked.status,
+      },
+    });
+  }
+
+  return booked;
 };
 
 export const cancelSession = async (sessionId: string) => {
@@ -164,7 +183,25 @@ export const cancelSession = async (sessionId: string) => {
     console.error('Error cancelling session:', error);
     throw error;
   }
-  return data?.[0];
+
+  const cancelled = data?.[0];
+  if (cancelled) {
+    // Notify n8n session cancel webhook
+    void postToN8n("student_event", {
+      eventType: "session_booking",
+      userId: cancelled.studentId,
+      telegramChatId: null,
+      source: "website",
+      metadata: {
+        sessionId: cancelled.id,
+        mentorId: cancelled.mentorId,
+        scheduledAt: cancelled.scheduledAt,
+        status: "Cancelled",
+      },
+    });
+  }
+
+  return cancelled;
 };
 
 export const rateSession = async (sessionId: string, rating: number, feedback: string) => {
@@ -483,6 +520,67 @@ export const getAdminAnalytics = async () => {
     topStudents: students.sort((a: any, b: any) => (a.rank || 999) - (b.rank || 999)).slice(0, 3).map(s => ({ name: s.name, score: s.totalScore, rank: s.rank, city: s.city })),
     topMentors: mentors.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0)).slice(0, 3).map(m => ({ name: m.name, rating: m.rating, reviews: m.totalReviews, sessions: m.totalSessions })),
     habitCompletionRate
+  };
+};
+
+/**
+ * Fetch daily accountability tasks dispatched by the n8n bot scheduler
+ */
+export const getDailyTasks = async (userId: string, date: string): Promise<any[]> => {
+  const { data, error } = await supabase
+    .from("daily_tasks")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("date", date);
+
+  if (error) {
+    console.error("Error fetching daily tasks:", error);
+    return [];
+  }
+  return data || [];
+};
+
+/**
+ * Updates Telegram link details inside the users table
+ */
+export const updateTelegramLink = async (
+  userId: string,
+  chatId: string,
+  username: string
+): Promise<boolean> => {
+  const { error } = await supabase
+    .from("users")
+    .update({
+      telegram_chat_id: chatId,
+      telegram_username: username,
+      onboarding_status: "completed"
+    })
+    .eq("id", userId);
+
+  if (error) {
+    console.error("Error updating telegram link:", error);
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Refreshes and returns the student's latest score and streak from users table
+ */
+export const refreshStudentScore = async (userId: string): Promise<{ totalScore: number; studyStreak: number } | null> => {
+  const { data, error } = await supabase
+    .from("users")
+    .select("totalScore, studyStreak")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    console.error("Error refreshing student score details:", error);
+    return null;
+  }
+  return {
+    totalScore: Number(data.totalScore || 0),
+    studyStreak: Number(data.studyStreak || 0),
   };
 };
 

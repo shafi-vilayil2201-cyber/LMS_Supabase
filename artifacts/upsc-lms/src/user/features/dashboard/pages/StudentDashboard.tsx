@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuthStore } from "@/user/features/auth/store/authStore";
-import { getAnnouncements, getDailyHabits, getSessions, getWeeklyBlocks, getCourses, getLeaderboard } from "@/shared/services/db";
-import { Flame, Trophy, BookOpen, Clock, CheckCircle, Lock, Calendar, Users, ChevronRight, TrendingUp, Star, AlertCircle } from "lucide-react";
+import { getAnnouncements, getDailyHabits, getSessions, getWeeklyBlocks, getCourses, getLeaderboard, getDailyTasks } from "@/shared/services/db";
+import { Flame, Trophy, BookOpen, Clock, CheckCircle, Lock, Calendar, Users, ChevronRight, TrendingUp, Star, AlertCircle, Send, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
 const NAVY = "#0A1628";
@@ -19,12 +19,15 @@ export default function StudentDashboard() {
   const [currentWeekBlock, setCurrentWeekBlock] = useState<any>(null);
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [botTasks, setBotTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const [ann, habits, sess, blocks, courses, lb] = await Promise.all([
-        getAnnouncements(), getDailyHabits(), getSessions(), getWeeklyBlocks(), getCourses(), getLeaderboard()
+      const todayStr = new Date().toISOString().split("T")[0];
+      const [ann, habits, sess, blocks, courses, lb, tasks] = await Promise.all([
+        getAnnouncements(), getDailyHabits(), getSessions(), getWeeklyBlocks(), getCourses(), getLeaderboard(),
+        getDailyTasks(currentUser?.id || "", todayStr)
       ]);
       setAnnouncements(ann.filter((a: any) => a.isActive).slice(0, 3));
       const today = habits.find((h: any) => h.userId === currentUser?.id);
@@ -39,6 +42,7 @@ export default function StudentDashboard() {
       const enrolled = courses.filter((c: any) => enrolledIds.includes(c.id));
       setEnrolledCourses(enrolled);
       setLeaderboard(lb.slice(0, 5));
+      setBotTasks(tasks);
       setLoading(false);
     }
     load();
@@ -99,6 +103,80 @@ export default function StudentDashboard() {
             <p className="text-white/50 text-xs mt-0.5">Month {currentUser?.currentMonth} of 12</p>
           </div>
         </div>
+      </div>
+
+      {/* Telegram accountability hub */}
+      <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-[#229ED9]" />
+            <h2 className="font-bold text-base" style={{ color: NAVY, fontFamily: "Inter, sans-serif" }}>
+              Telegram Daily Checklist
+            </h2>
+          </div>
+          {currentUser?.telegram_chat_id && (
+            <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+              Bot Active
+            </span>
+          )}
+        </div>
+
+        {!currentUser?.telegram_chat_id ? (
+          <div className="rounded-xl bg-amber-50/50 border border-amber-200/50 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-amber-800">Connection Required</p>
+              <p className="text-xs text-amber-700 max-w-xl">
+                Activate your UPSC daily discipline checklist! Start the bot on Telegram to receive customized daily syllabus blocks, reminders, and workout tasks.
+              </p>
+            </div>
+            <a
+              href={`https://t.me/IGenLMS_bot?start=${currentUser?.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl text-white px-4 text-xs font-bold bg-[#229ED9] hover:bg-[#1d8bcb] transition-colors flex-shrink-0"
+            >
+              <Send className="w-3.5 h-3.5" /> Start Telegram Onboarding
+            </a>
+          </div>
+        ) : botTasks.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center space-y-2">
+            <p className="text-sm font-semibold text-muted-foreground">No tasks received yet</p>
+            <p className="text-xs text-muted-foreground/80 max-w-md mx-auto">
+              Your daily tasks will be automatically dispatched to your Telegram chat every morning based on your personalized onboarding strategy.
+            </p>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {botTasks.map((t: any) => (
+              <div
+                key={t.id}
+                className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-colors ${
+                  t.status === "completed"
+                    ? "border-green-200 bg-green-50/30"
+                    : "border-border bg-background"
+                }`}
+              >
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                      {t.task_type.replace("_", " ")}
+                    </span>
+                    {t.due_time && <span className="text-[10px] text-muted-foreground font-medium">Due {t.due_time}</span>}
+                  </div>
+                  <p className="text-xs font-bold truncate" style={{ color: NAVY }}>
+                    {t.title}
+                  </p>
+                  {t.details && <p className="text-[11px] text-muted-foreground truncate">{t.details}</p>}
+                </div>
+                {t.status === "completed" ? (
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                ) : (
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300 animate-pulse flex-shrink-0" title="Pending" />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Announcements */}

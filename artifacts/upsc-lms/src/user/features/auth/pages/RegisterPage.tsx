@@ -34,6 +34,13 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Student onboarding personalization fields
+  const [yearsPreparing, setYearsPreparing] = useState<number>(1);
+  const [dailyRoutine, setDailyRoutine] = useState<string>("full-time");
+  const [strongSubject, setStrongSubject] = useState<string>("Polity");
+  const [weakSubject, setWeakSubject] = useState<string>("History");
+  const [bedtimeTarget, setBedtimeTarget] = useState<string>("22:30");
+
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
@@ -97,7 +104,15 @@ export default function RegisterPage() {
           badges: [],
           enrolledCourses: [],
           currentWeek: 1,
-          currentMonth: 1
+          currentMonth: 1,
+          yearsPreparing,
+          dailyRoutine,
+          strongSubject,
+          weakSubject,
+          bedtimeTarget,
+          telegram_chat_id: "",
+          telegram_username: "",
+          onboarding_status: "pending"
         };
       } else {
         profilePayload = {
@@ -342,6 +357,81 @@ export default function RegisterPage() {
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Student Onboarding Personalization Fields */}
+              {role === "student" && (
+                <div className="space-y-4 border-t border-dashed border-slate-200 pt-4">
+                  <h4 className="text-sm font-bold text-foreground font-sans">Personalize Your UPSC Daily Path</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5 font-sans">Years Preparing</label>
+                      <select
+                        value={yearsPreparing}
+                        onChange={(e) => setYearsPreparing(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+                      >
+                        <option value={1}>1 Year (Baseline Revise)</option>
+                        <option value={2}>2 Years (Standard Pace)</option>
+                        <option value={3}>3+ Years (Practice Focused)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5 font-sans">Daily Study Method</label>
+                      <select
+                        value={dailyRoutine}
+                        onChange={(e) => setDailyRoutine(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+                      >
+                        <option value="full-time">Full-time Aspirant (8-10 Hours)</option>
+                        <option value="working-pro">Working Professional (3-4 Hours)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5 font-sans">Strongest Subject</label>
+                      <select
+                        value={strongSubject}
+                        onChange={(e) => setStrongSubject(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+                      >
+                        <option value="Polity">Polity & Constitution</option>
+                        <option value="History">Indian History</option>
+                        <option value="Geography">Geography</option>
+                        <option value="Economy">Economy</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5 font-sans">Weakest Subject</label>
+                      <select
+                        value={weakSubject}
+                        onChange={(e) => setWeakSubject(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+                      >
+                        <option value="Polity">Polity & Constitution</option>
+                        <option value="History">Indian History</option>
+                        <option value="Geography">Geography</option>
+                        <option value="Economy">Economy</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5 font-sans">Target Bedtime</label>
+                      <select
+                        value={bedtimeTarget}
+                        onChange={(e) => setBedtimeTarget(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+                      >
+                        <option value="22:00">10:00 PM</option>
+                        <option value="22:30">10:30 PM</option>
+                        <option value="23:00">11:00 PM</option>
+                        <option value="23:30">11:30 PM</option>
+                        <option value="00:00">12:00 AM</option>
+                      </select>
                     </div>
                   </div>
                 </div>
