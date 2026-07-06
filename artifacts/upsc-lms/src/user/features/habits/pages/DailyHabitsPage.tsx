@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useAuthStore } from "@/user/features/auth/store/authStore";
+import { supabase } from "@/shared/lib/supabaseClient";
 import {
   BookOpen,
   FileText,
@@ -17,7 +18,8 @@ import {
   Calendar,
   Layers,
   ChevronRight,
-  TrendingDown
+  Edit,
+  Trash2
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useToast } from "@/shared/hooks/use-toast";
@@ -30,7 +32,6 @@ import {
 } from "@/shared/components/ui/dialog";
 
 // ─── Design Colors ───────────────────────────────────────────────────────────
-const NAVY = "#0A1628";
 const GREEN = "#009E2C";
 const GOLD = "#EAB308";
 const TEAL = "#1A7F8E";
@@ -65,6 +66,14 @@ interface NightReview {
   productivityScore?: number;
 }
 
+interface MorningPlan {
+  plannedHours: number;
+  actualHours: number;
+  tasksPlanned: number;
+  tasksCompleted: number;
+  primaryFocusSubject: string;
+}
+
 export default function DailyHabitsPage() {
   const { currentUser } = useAuthStore();
   const { toast } = useToast();
@@ -72,8 +81,8 @@ export default function DailyHabitsPage() {
   const [loading, setLoading] = useState(false);
   const [errorState, setErrorState] = useState<string | null>(null);
 
-  // local state storage for persistence warning message
-  const [localSaveWarning, setLocalSaveWarning] = useState<string | null>(null);
+  // Status message for cloud sync state
+  const [syncStatus, setSyncStatus] = useState<string | null>("Syncing with cloud...");
 
   // ─── Core Accountability States ─────────────────────────────────────────────
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -81,21 +90,22 @@ export default function DailyHabitsPage() {
   const [nightReview, setNightReview] = useState<NightReview>({ submitted: false });
   const [streak, setStreak] = useState(currentUser?.studyStreak ?? 0);
   
-  // Morning Plan
-  const [morningPlan, setMorningPlan] = useState({
+  const [morningPlan, setMorningPlan] = useState<MorningPlan>({
     plannedHours: 8,
-    actualHours: 4.5,
+    actualHours: 0,
     tasksPlanned: 5,
-    tasksCompleted: 3,
-    primaryFocusSubject: "Indian Polity & Modern History",
+    tasksCompleted: 0,
+    primaryFocusSubject: "Polity & History Daily Targets",
   });
 
-  // History and Trends (last 7 days demo)
+  // History and Trends
   const [history, setHistory] = useState<any[]>([]);
 
   // Modals
   const [habitModalOpen, setHabitModalOpen] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [morningModalOpen, setMorningModalOpen] = useState(false);
+  const [focusModalOpen, setFocusModalOpen] = useState(false);
 
   // ─── Default Fallback Habits ────────────────────────────────────────────────
   const defaultHabits: Habit[] = [
@@ -115,7 +125,7 @@ export default function DailyHabitsPage() {
     {
       id: "h-2",
       title: "Daily Quiz",
-      description: "Attend daily standard MCQ quiz",
+      description: "Attempt daily standard MCQ quiz",
       habitType: "MockTest",
       reminderTime: "14:00",
       isReminderEnabled: true,
@@ -153,59 +163,175 @@ export default function DailyHabitsPage() {
     },
   ];
 
-  // ─── Initialize Data ────────────────────────────────────────────────────────
+  // ─── Initialize Data from Supabase ──────────────────────────────────────────
   useEffect(() => {
-    setLoading(true);
-    // Simulate Loading APIs
-    const timer = setTimeout(() => {
+    const uid = currentUser?.id;
+    if (!uid) return;
+    
+    async function loadData() {
+      setLoading(true);
+      setErrorState(null);
+      
       try {
-        // Fallback or local storage logic
-        const savedHabits = localStorage.getItem("igen-local-habits");
-        if (savedHabits) {
-          setHabits(JSON.parse(savedHabits));
+        const todayStr = new Date().toISOString().split("T")[0];
+        
+        // 1. Fetch today's record
+        const { data: todayRow, error: todayError } = await supabase
+          .from("daily_habits")
+          .select("*")
+          .eq("userId", uid)
+          .eq("date", todayStr)
+          .maybeSingle();
+          
+        if (todayError) throw todayError;
+        
+        // 2. Fetch last 7 days history
+        const { data: historyRows, error: historyError } = await supabase
+          .from("daily_habits")
+          .select("*")
+          .eq("userId", uid)
+          .order("date", { ascending: false })
+          .limit(7);
+          
+        if (historyError) throw historyError;
+
+        // Parse history for display
+        if (historyRows && historyRows.length > 0) {
+          setHistory(historyRows.map(row => ({
+            date: row.date,
+            study: !!row.topicCompleted,
+            test: !!row.quizAttended,
+            read: !!row.newspaperRead,
+            exec: !!row.exerciseDone,
+            score: Number(row.disciplineScore || 0),
+          })));
         } else {
+          setHistory([]);
+        }
+
+        // Parse today's record or set defaults
+        if (todayRow) {
+          // Re-assemble habits array
+          const coreHabits = defaultHabits.map(h => {
+            let isDone = false;
+            if (h.id === "h-1") isDone = !!todayRow.topicCompleted;
+            if (h.id === "h-2") isDone = !!todayRow.quizAttended;
+            if (h.id === "h-3") isDone = !!todayRow.newspaperRead;
+            if (h.id === "h-4") isDone = !!todayRow.exerciseDone;
+            return { ...h, isCompletedToday: isDone };
+          });
+          
+          const customList = Array.isArray(todayRow.customHabits) ? todayRow.customHabits : [];
+          setHabits([...coreHabits, ...customList]);
+
+          if (todayRow.morningPlan) {
+            setMorningPlan(todayRow.morningPlan);
+          }
+          if (Array.isArray(todayRow.focusSessions)) {
+            setFocusSessions(todayRow.focusSessions);
+          }
+          if (todayRow.nightReview) {
+            setNightReview(todayRow.nightReview);
+          }
+          setSyncStatus(null);
+        } else {
+          // Initialize fresh today's state in database
           setHabits(defaultHabits);
+          const initialPlan = {
+            plannedHours: 8,
+            actualHours: 0,
+            tasksPlanned: 5,
+            tasksCompleted: 0,
+            primaryFocusSubject: "Polity & History Daily Targets",
+          };
+          const initialSessions: FocusSession[] = [
+            { id: "fs-1", topic: "Preamble & Fundamental Rights", plannedMinutes: 90, status: "active" },
+          ];
+          setMorningPlan(initialPlan);
+          setFocusSessions(initialSessions);
+          setNightReview({ submitted: false });
+          
+          // Pre-save row
+          await supabase.from("daily_habits").insert({
+            userId: uid,
+            date: todayStr,
+            topicCompleted: false,
+            quizAttended: false,
+            newspaperRead: false,
+            exerciseDone: false,
+            disciplineScore: 0.0,
+            morningPlan: initialPlan,
+            focusSessions: initialSessions,
+            nightReview: { submitted: false },
+            customHabits: [],
+          });
+          setSyncStatus(null);
         }
-
-        // Demo focus sessions
-        setFocusSessions([
-          { id: "fs-1", topic: "Preamble & Fundamental Rights", plannedMinutes: 90, status: "completed" },
-          { id: "fs-2", topic: "Vedic Period Revision", plannedMinutes: 60, status: "active" },
-          { id: "fs-3", topic: "CSAT Mock Questions", plannedMinutes: 45, status: "cancelled" },
-        ]);
-
-        // Demo History
-        setHistory([
-          { date: "2026-07-05", study: true, test: true, read: true, exec: true, score: 4.0 },
-          { date: "2026-07-04", study: true, test: false, read: true, exec: true, score: 3.0 },
-          { date: "2026-07-03", study: true, test: true, read: false, exec: false, score: 2.0 },
-          { date: "2026-07-02", study: true, test: true, read: true, exec: true, score: 4.0 },
-          { date: "2026-07-01", study: false, test: false, read: true, exec: true, score: 2.0 },
-          { date: "2026-06-30", study: true, test: true, read: true, exec: false, score: 3.0 },
-          { date: "2026-06-29", study: true, test: true, read: true, exec: true, score: 4.0 },
-        ]);
-
-        // Load night review if stored
-        const savedReview = localStorage.getItem("igen-local-night-review");
-        if (savedReview) {
-          setNightReview(JSON.parse(savedReview));
-        }
-
-        setErrorState(null);
       } catch (err: any) {
-        setErrorState("Failed to load dashboard accountability data.");
+        console.error("Error loading accountability data from Supabase:", err);
+        setSyncStatus("Saved locally. Could not sync with database.");
+        // fallback to local storage
+        const savedHabits = localStorage.getItem("igen-local-habits");
+        setHabits(savedHabits ? JSON.parse(savedHabits) : defaultHabits);
       } finally {
         setLoading(false);
       }
-    }, 450);
+    }
+    
+    loadData();
+  }, [currentUser]);
 
-    return () => clearTimeout(timer);
-  }, []);
-
-  // ─── Local State Helper to Sync localStorage ────────────────────────────────
-  const saveHabitsStateLocally = (newHabits: Habit[]) => {
-    setHabits(newHabits);
-    localStorage.setItem("igen-local-habits", JSON.stringify(newHabits));
+  // ─── Sync All Accountability Data to Supabase ────────────────────────────────
+  const syncToSupabase = async (
+    updatedHabits: Habit[],
+    updatedPlan = morningPlan,
+    updatedSessions = focusSessions,
+    updatedReview = nightReview
+  ) => {
+    if (!currentUser?.id) return;
+    
+    const todayStr = new Date().toISOString().split("T")[0];
+    
+    // Split core vs custom
+    const isStudyDone = !!updatedHabits.find(h => h.id === "h-1")?.isCompletedToday;
+    const isQuizDone = !!updatedHabits.find(h => h.id === "h-2")?.isCompletedToday;
+    const isNewsDone = !!updatedHabits.find(h => h.id === "h-3")?.isCompletedToday;
+    const isExecDone = !!updatedHabits.find(h => h.id === "h-4")?.isCompletedToday;
+    
+    const customList = updatedHabits.filter(h => !h.id.startsWith("h-") || h.id.startsWith("h-custom"));
+    
+    // Calculate Score
+    const totalPts = updatedHabits.reduce((acc, h) => acc + h.points, 0);
+    const earnedPts = updatedHabits.reduce((acc, h) => acc + (h.isCompletedToday ? h.points : 0), 0);
+    const score = totalPts > 0 ? Number(((earnedPts / totalPts) * 4).toFixed(1)) : 0.0;
+    
+    try {
+      const { error } = await supabase
+        .from("daily_habits")
+        .upsert({
+          userId: currentUser.id,
+          date: todayStr,
+          topicCompleted: isStudyDone,
+          quizAttended: isQuizDone,
+          newspaperRead: isNewsDone,
+          exerciseDone: isExecDone,
+          disciplineScore: score,
+          morningPlan: updatedPlan,
+          focusSessions: updatedSessions,
+          nightReview: updatedReview,
+          customHabits: customList,
+        }, { onConflict: "userId,date" });
+        
+      if (error) throw error;
+      setSyncStatus(null);
+    } catch (err: any) {
+      console.warn("Could not sync with Supabase daily_habits table, saving locally:", err.message);
+      setSyncStatus(
+        `Saved locally. Connection to Supabase daily_habits is pending. discipline score: ${score} / 4`
+      );
+      // fallback
+      localStorage.setItem("igen-local-habits", JSON.stringify(updatedHabits));
+    }
   };
 
   // ─── Toggling Habit Status ──────────────────────────────────────────────────
@@ -218,23 +344,17 @@ export default function DailyHabitsPage() {
       h.id === habitId ? { ...h, isCompletedToday: newCompletedState } : h
     );
 
-    saveHabitsStateLocally(newHabits);
+    setHabits(newHabits);
+    syncToSupabase(newHabits);
 
-    // Calculate score for save message
-    const completedCount = newHabits.filter((h) => h.isCompletedToday).length;
+    // Calculate score
     const totalPoints = newHabits.reduce((acc, h) => acc + h.points, 0);
     const earnedPoints = newHabits.reduce((acc, h) => acc + (h.isCompletedToday ? h.points : 0), 0);
     const score = totalPoints > 0 ? Number(((earnedPoints / totalPoints) * 4).toFixed(1)) : 0.0;
 
-    // Display warning message
-    setLocalSaveWarning(
-      `Saved locally for now. Backend complete-habit API is pending. Discipline score: ${score} / 4`
-    );
-    
-    // Toast notification
     toast({
-      title: "Discipline score updated",
-      description: `Discipline Rating: ${score} / 4. Saved locally.`,
+      title: "Score updated",
+      description: `Discipline Rating: ${score} / 4.0`,
     });
   };
 
@@ -291,10 +411,56 @@ export default function DailyHabitsPage() {
       completedMinutesToday: 0,
     };
 
-    saveHabitsStateLocally([...habits, newHabit]);
+    const newHabits = [...habits, newHabit];
+    setHabits(newHabits);
+    syncToSupabase(newHabits);
     setHabitModalOpen(false);
     event.currentTarget.reset();
-    toast({ title: "Habit Created!", description: `"${title}" has been saved locally.` });
+    toast({ title: "Habit Created!", description: `"${title}" has been saved.` });
+  };
+
+  // ─── Morning Plan Edit Submission ───────────────────────────────────────────
+  const handleUpdateMorningPlan = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const updatedPlan: MorningPlan = {
+      plannedHours: getNumber(formData, "plannedHours"),
+      actualHours: getNumber(formData, "actualHours"),
+      tasksPlanned: getNumber(formData, "tasksPlanned"),
+      tasksCompleted: getNumber(formData, "tasksCompleted"),
+      primaryFocusSubject: getString(formData, "primaryFocusSubject"),
+    };
+
+    setMorningPlan(updatedPlan);
+    syncToSupabase(habits, updatedPlan);
+    setMorningModalOpen(false);
+    toast({ title: "Morning Strategy Saved", description: "Your strategy targets have been updated." });
+  };
+
+  // ─── Focus Session Create Submission ────────────────────────────────────────
+  const handleAddFocusSession = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const newSession: FocusSession = {
+      id: `fs-${Date.now()}`,
+      topic: getString(formData, "topic"),
+      plannedMinutes: getNumber(formData, "plannedMinutes"),
+      status: "active",
+    };
+
+    const updatedSessions = [...focusSessions, newSession];
+    setFocusSessions(updatedSessions);
+    syncToSupabase(habits, morningPlan, updatedSessions);
+    setFocusModalOpen(false);
+    toast({ title: "Focus session added", description: `"${newSession.topic}" is now active.` });
+  };
+
+  const handleUpdateSessionStatus = (sessionId: string, status: FocusSession["status"]) => {
+    const updatedSessions = focusSessions.map(s => 
+      s.id === sessionId ? { ...s, status } : s
+    );
+    setFocusSessions(updatedSessions);
+    syncToSupabase(habits, morningPlan, updatedSessions);
   };
 
   // ─── Night Review submission ────────────────────────────────────────────────
@@ -316,7 +482,7 @@ export default function DailyHabitsPage() {
     };
 
     setNightReview(review);
-    localStorage.setItem("igen-local-night-review", JSON.stringify(review));
+    syncToSupabase(habits, morningPlan, focusSessions, review);
     setReviewModalOpen(false);
     toast({ title: "Night Review Submitted!", description: "Today's loop is officially concluded. Great job!" });
   };
@@ -326,15 +492,13 @@ export default function DailyHabitsPage() {
   const totalPoints = habits.reduce((acc, h) => acc + h.points, 0);
   const todayPoints = habits.reduce((acc, h) => acc + (h.isCompletedToday ? h.points : 0), 0);
   
-  // Discipline Rating: (todayScore / totalPoints) * 4
   const dailyDisciplineScore = totalPoints > 0 ? Number(((todayPoints / totalPoints) * 4).toFixed(1)) : 0.0;
 
-  // Streak Qualification Rules:
-  // Qualified only if: at least 75% habits completed AND score >= 3.0
+  // Streak Qualification
   const habitCompletionRate = habits.length > 0 ? (completedHabits.length / habits.length) * 100 : 0;
   const isStreakQualified = habitCompletionRate >= 75 && dailyDisciplineScore >= 3.0;
 
-  // Render icons mapping for habit types
+  // Icon mapping
   const getHabitIcon = (type: Habit["habitType"]) => {
     switch (type) {
       case "Study": return BookOpen;
@@ -349,19 +513,19 @@ export default function DailyHabitsPage() {
     }
   };
 
-  // Prepare chart trend mapping
+  // Trend Chart
   const chartData = history.slice().reverse().map((h) => ({
     day: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(h.date).getDay()],
     score: h.score,
   }));
 
-  // Add today to trend chart data
+  // Append today
   chartData.push({
     day: "Today",
     score: dailyDisciplineScore,
   });
 
-  // Helpers for extracting string/number from FormData
+  // Helpers
   function getString(formData: FormData, key: string): string {
     return String(formData.get(key) || "").trim();
   }
@@ -369,7 +533,7 @@ export default function DailyHabitsPage() {
     return Number(formData.get(key) || 0);
   }
 
-  // ─── Loading / Error states ─────────────────────────────────────────────────
+  // Loading indicator
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -405,7 +569,7 @@ export default function DailyHabitsPage() {
         </div>
         <button
           onClick={() => setHabitModalOpen(true)}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl text-white px-4 text-sm font-semibold hover:opacity-90 transition-opacity"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl text-white px-4 text-sm font-semibold hover:opacity-95 transition-opacity"
           style={{ background: GREEN }}
         >
           <Plus className="w-4 h-4" />
@@ -413,11 +577,11 @@ export default function DailyHabitsPage() {
         </button>
       </div>
 
-      {/* ─── Local Save Warning Banner ────────────────────────────────────────── */}
-      {localSaveWarning && (
+      {/* ─── Cloud Sync Banner ───────────────────────────────────────────────── */}
+      {syncStatus && (
         <div className="flex items-center gap-3 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-400">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{localSaveWarning}</span>
+          <span>{syncStatus}</span>
         </div>
       )}
 
@@ -450,9 +614,9 @@ export default function DailyHabitsPage() {
 
       {/* ─── Main Grid Layout ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Columns (Accountability plan & list) */}
+        {/* Left Columns */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Today's Habits card */}
+          {/* Today's Habits checklist */}
           <div className="bg-card text-card-foreground rounded-2xl border border-border p-6 shadow-sm">
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -517,10 +681,20 @@ export default function DailyHabitsPage() {
 
           {/* Morning Plan card */}
           <div className="bg-card text-card-foreground rounded-2xl border border-border p-6 shadow-sm">
-            <h2 className="font-bold text-lg text-foreground flex items-center gap-2 mb-4">
-              <Compass className="w-5 h-5 text-muted-foreground" />
-              Morning Strategy & Target
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
+                <Compass className="w-5 h-5 text-muted-foreground" />
+                Morning Strategy & Target
+              </h2>
+              <button
+                type="button"
+                onClick={() => setMorningModalOpen(true)}
+                className="p-1.5 text-muted-foreground hover:text-foreground transition rounded-md hover:bg-muted"
+                title="Edit Plan"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1">
                 <span className="text-xs text-muted-foreground font-medium">Primary Focus</span>
@@ -538,13 +712,12 @@ export default function DailyHabitsPage() {
               </div>
             </div>
 
-            {/* Study Progress Bar */}
             <div className="mt-5 space-y-2">
               <div className="flex justify-between text-xs font-medium">
                 <span className="text-muted-foreground">Focus Hours Progress</span>
                 <span className="text-foreground">
                   {morningPlan.actualHours} / {morningPlan.plannedHours} hrs (
-                  {Math.round((morningPlan.actualHours / morningPlan.plannedHours) * 100)}%)
+                  {morningPlan.plannedHours > 0 ? Math.round((morningPlan.actualHours / morningPlan.plannedHours) * 100) : 0}%)
                 </span>
               </div>
               <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
@@ -552,7 +725,7 @@ export default function DailyHabitsPage() {
                   className="h-full transition-all"
                   style={{
                     background: GREEN,
-                    width: `${Math.min((morningPlan.actualHours / morningPlan.plannedHours) * 100, 100)}%`
+                    width: `${morningPlan.plannedHours > 0 ? Math.min((morningPlan.actualHours / morningPlan.plannedHours) * 100, 100) : 0}%`
                   }}
                 />
               </div>
@@ -561,38 +734,69 @@ export default function DailyHabitsPage() {
 
           {/* Focus Sessions list */}
           <div className="bg-card text-card-foreground rounded-2xl border border-border p-6 shadow-sm">
-            <h2 className="font-bold text-lg text-foreground flex items-center gap-2 mb-4">
-              <Clock className="w-5 h-5 text-muted-foreground" />
-              Focus Sessions
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
+                <Clock className="w-5 h-5 text-muted-foreground" />
+                Focus Sessions
+              </h2>
+              <button
+                type="button"
+                onClick={() => setFocusModalOpen(true)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:opacity-90"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Session
+              </button>
+            </div>
             <div className="space-y-2">
-              {focusSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-card/30"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{session.topic}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{session.plannedMinutes} mins planned</p>
-                  </div>
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                      session.status === "completed"
-                        ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                        : session.status === "active"
-                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 animate-pulse"
-                        : "bg-red-500/10 text-red-600 dark:text-red-400"
-                    }`}
+              {focusSessions.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">No focus sessions added yet.</p>
+              ) : (
+                focusSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-card/30"
                   >
-                    {session.status}
-                  </span>
-                </div>
-              ))}
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{session.topic}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{session.plannedMinutes} mins planned</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {session.status === "active" && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateSessionStatus(session.id, "completed")}
+                            className="text-[10px] bg-green-500/10 hover:bg-green-500/20 text-green-600 font-bold px-2 py-1 rounded"
+                          >
+                            Done
+                          </button>
+                          <button
+                            onClick={() => handleUpdateSessionStatus(session.id, "cancelled")}
+                            className="text-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-600 font-bold px-2 py-1 rounded"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          session.status === "completed"
+                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                            : session.status === "active"
+                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 animate-pulse"
+                            : "bg-red-500/10 text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {session.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right Columns (Streak, chart, night review) */}
+        {/* Right Columns */}
         <div className="space-y-6">
           {/* Streak Qualification Card */}
           <div className="bg-card text-card-foreground rounded-2xl border border-border p-5 shadow-sm">
@@ -675,77 +879,79 @@ export default function DailyHabitsPage() {
       </div>
 
       {/* ─── 7-Day History Table ──────────────────────────────────────────────── */}
-      <div className="bg-card text-card-foreground rounded-2xl border border-border p-6 shadow-sm">
-        <h2 className="font-bold text-lg text-foreground mb-4">7-Day Accountability History</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border text-left">
-                <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground">Date</th>
-                <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Topic Study</th>
-                <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Daily Quiz</th>
-                <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Newspaper</th>
-                <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Exercise</th>
-                <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((day, index) => (
-                <tr key={index} className="border-b border-border/55 last:border-none">
-                  <td className="py-3 px-3 text-xs font-medium text-foreground">
-                    {new Date(day.date).toLocaleDateString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric"
-                    })}
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    {day.study ? (
-                      <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground/40 mx-auto" />
-                    )}
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    {day.test ? (
-                      <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground/40 mx-auto" />
-                    )}
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    {day.read ? (
-                      <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground/40 mx-auto" />
-                    )}
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    {day.exec ? (
-                      <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground/40 mx-auto" />
-                    )}
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <span
-                      className={`font-bold text-xs ${
-                        day.score >= 3.0
-                          ? "text-green-600 dark:text-green-400"
-                          : day.score >= 2.0
-                          ? "text-yellow-600 dark:text-yellow-400"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {day.score.toFixed(1)} / 4
-                    </span>
-                  </td>
+      {history.length > 0 && (
+        <div className="bg-card text-card-foreground rounded-2xl border border-border p-6 shadow-sm">
+          <h2 className="font-bold text-lg text-foreground mb-4">7-Day Accountability History</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground">Date</th>
+                  <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Topic Study</th>
+                  <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Daily Quiz</th>
+                  <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Newspaper</th>
+                  <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Exercise</th>
+                  <th className="py-2.5 px-3 text-xs font-semibold text-muted-foreground text-center">Score</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {history.map((day, index) => (
+                  <tr key={index} className="border-b border-border/55 last:border-none">
+                    <td className="py-3 px-3 text-xs font-medium text-foreground">
+                      {new Date(day.date).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric"
+                      })}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {day.study ? (
+                        <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-muted-foreground/40 mx-auto" />
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {day.test ? (
+                        <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-muted-foreground/40 mx-auto" />
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {day.read ? (
+                        <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-muted-foreground/40 mx-auto" />
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {day.exec ? (
+                        <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-muted-foreground/40 mx-auto" />
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span
+                        className={`font-bold text-xs ${
+                          day.score >= 3.0
+                            ? "text-green-600 dark:text-green-400"
+                            : day.score >= 2.0
+                            ? "text-yellow-600 dark:text-yellow-400"
+                            : "text-red-500"
+                        }`}
+                      >
+                        {day.score.toFixed(1)} / 4
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ─── MODAL DIALOGS ───────────────────────────────────────────────────── */}
       
@@ -803,10 +1009,75 @@ export default function DailyHabitsPage() {
               </button>
               <button
                 type="submit"
-                className="h-10 px-4 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition"
+                className="h-10 px-4 text-white text-sm font-semibold rounded-xl hover:opacity-95 transition"
                 style={{ background: GREEN }}
               >
                 Save Habit
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Morning Plan Modal */}
+      <Dialog open={morningModalOpen} onOpenChange={(open) => !open && setMorningModalOpen(false)}>
+        <DialogContent className="max-w-md bg-card border border-border p-6 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-foreground">Edit Morning Strategy</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateMorningPlan} className="space-y-3.5 mt-2">
+            <Field label="Primary Focus Subject" name="primaryFocusSubject" defaultValue={morningPlan.primaryFocusSubject} />
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Planned Hours" name="plannedHours" type="number" min={0} max={24} defaultValue={morningPlan.plannedHours} />
+              <Field label="Actual Hours Completed" name="actualHours" type="number" min={0} max={24} defaultValue={morningPlan.actualHours} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Tasks Planned" name="tasksPlanned" type="number" min={0} defaultValue={morningPlan.tasksPlanned} />
+              <Field label="Tasks Completed" name="tasksCompleted" type="number" min={0} defaultValue={morningPlan.tasksCompleted} />
+            </div>
+            <DialogFooter className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMorningModalOpen(false)}
+                className="h-10 px-4 border border-border bg-card text-foreground hover:bg-muted text-sm font-semibold rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="h-10 px-4 text-white text-sm font-semibold rounded-xl hover:opacity-95 transition"
+                style={{ background: GREEN }}
+              >
+                Save Plan
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Focus Session Modal */}
+      <Dialog open={focusModalOpen} onOpenChange={(open) => !open && setFocusModalOpen(false)}>
+        <DialogContent className="max-w-md bg-card border border-border p-6 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-foreground">New Focus Session</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAddFocusSession} className="space-y-4 mt-2">
+            <Field label="Topic / Task Name" name="topic" placeholder="e.g. Laxmikanth Chapter 5 Notes" />
+            <Field label="Planned Duration (Minutes)" name="plannedMinutes" type="number" min={5} max={480} placeholder="60" />
+            <DialogFooter className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setFocusModalOpen(false)}
+                className="h-10 px-4 border border-border bg-card text-foreground hover:bg-muted text-sm font-semibold rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="h-10 px-4 text-white text-sm font-semibold rounded-xl hover:opacity-95 transition"
+                style={{ background: GREEN }}
+              >
+                Start Session
               </button>
             </DialogFooter>
           </form>
@@ -823,16 +1094,19 @@ export default function DailyHabitsPage() {
             <TextArea
               label="What tasks did you complete today?"
               name="completedTasks"
+              defaultValue={nightReview.completedTasks || ""}
               placeholder="e.g. Completed History chapter 4, Quiz 12, Physical exercise..."
             />
             <TextArea
               label="Describe any blockers or study distractions faced today"
               name="blockers"
+              defaultValue={nightReview.blockers || ""}
               placeholder="e.g. spent extra time researching options instead of studying"
             />
             <Field
               label="Tomorrow's first action item"
               name="tomorrowFirstAction"
+              defaultValue={nightReview.tomorrowFirstAction || ""}
               placeholder="e.g. Attempt UPSC Prelims test first thing at 8 AM"
             />
             <Field
@@ -841,6 +1115,7 @@ export default function DailyHabitsPage() {
               type="number"
               min={1}
               max={10}
+              defaultValue={nightReview.productivityScore || 8}
               placeholder="8"
             />
 
@@ -854,7 +1129,7 @@ export default function DailyHabitsPage() {
               </button>
               <button
                 type="submit"
-                className="h-10 px-4 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition"
+                className="h-10 px-4 text-white text-sm font-semibold rounded-xl hover:opacity-95 transition"
                 style={{ background: GREEN }}
               >
                 Submit Review

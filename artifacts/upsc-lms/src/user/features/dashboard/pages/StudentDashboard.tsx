@@ -30,9 +30,10 @@ export default function StudentDashboard() {
       const today = habits.find((h: any) => h.userId === currentUser?.id);
       setTodayHabits(today);
       setSessions(sess.filter((s: any) => s.studentId === currentUser?.id && s.status === "Booked").slice(0, 3));
-      const currentWeek = blocks.find((b: any) => b.courseId === "c1" && b.weekNumber === (currentUser?.currentWeek || 12));
+      const enrolledIds = Array.isArray(currentUser?.enrolledCourses) ? currentUser.enrolledCourses : [];
+      const currentWeek = blocks.find((b: any) => enrolledIds.includes(b.courseId) && b.weekNumber === (currentUser?.currentWeek || 12)) || blocks.find((b: any) => b.courseId === "c1" && b.weekNumber === 12);
       setCurrentWeekBlock(currentWeek);
-      const enrolled = courses.filter((c: any) => currentUser?.enrolledCourses?.includes(c.id));
+      const enrolled = courses.filter((c: any) => enrolledIds.includes(c.id));
       setEnrolledCourses(enrolled);
       setLeaderboard(lb.slice(0, 5));
       setLoading(false);
@@ -270,7 +271,9 @@ export default function StudentDashboard() {
               `linear-gradient(135deg, ${NAVY} 0%, #1a3a6e 100%)`,
               `linear-gradient(135deg, ${TEAL} 0%, #0f5a67 100%)`,
             ];
-            const progress = i === 0 ? 35 : 60;
+            const progress = course.durationWeeks
+              ? Math.min(Math.round(((currentUser?.currentWeek || 1) / course.durationWeeks) * 100), 100)
+              : (i === 0 ? 35 : 60);
             return (
               <div key={course.id} data-testid={`card-course-${course.id}`}
                 className="rounded-xl overflow-hidden border border-border hover:shadow-md transition-shadow cursor-pointer"
