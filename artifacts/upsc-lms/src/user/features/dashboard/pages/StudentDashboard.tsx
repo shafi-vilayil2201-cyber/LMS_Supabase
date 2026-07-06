@@ -30,7 +30,10 @@ export default function StudentDashboard() {
       const today = habits.find((h: any) => h.userId === currentUser?.id);
       setTodayHabits(today);
       setSessions(sess.filter((s: any) => s.studentId === currentUser?.id && s.status === "Booked").slice(0, 3));
-      const enrolledIds = Array.isArray(currentUser?.enrolledCourses) ? currentUser.enrolledCourses : [];
+      const localEnrolled = JSON.parse(localStorage.getItem("igen-local-enrolled") || "[]");
+      const dbEnrolled = Array.isArray(currentUser?.enrolledCourses) ? currentUser.enrolledCourses : [];
+      const enrolledIds = [...new Set([...dbEnrolled, ...localEnrolled])];
+      
       const currentWeek = blocks.find((b: any) => enrolledIds.includes(b.courseId) && b.weekNumber === (currentUser?.currentWeek || 12)) || blocks.find((b: any) => b.courseId === "c1" && b.weekNumber === 12);
       setCurrentWeekBlock(currentWeek);
       const enrolled = courses.filter((c: any) => enrolledIds.includes(c.id));
@@ -265,42 +268,59 @@ export default function StudentDashboard() {
             All Courses <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {enrolledCourses.map((course, i) => {
-            const gradients = [
-              `linear-gradient(135deg, ${NAVY} 0%, #1a3a6e 100%)`,
-              `linear-gradient(135deg, ${TEAL} 0%, #0f5a67 100%)`,
-            ];
-            const progress = course.durationWeeks
-              ? Math.min(Math.round(((currentUser?.currentWeek || 1) / course.durationWeeks) * 100), 100)
-              : (i === 0 ? 35 : 60);
-            return (
-              <div key={course.id} data-testid={`card-course-${course.id}`}
-                className="rounded-xl overflow-hidden border border-border hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => setLocation(`/courses/${course.id}`)}>
-                <div className="h-24 flex items-end p-4" style={{ background: gradients[i % 2] }}>
-                  <div>
-                    <span className="text-xs px-2 py-0.5 rounded-full text-white/80 bg-white/10 font-medium">{course.category}</span>
-                    <p className="text-white font-semibold text-sm mt-1 leading-tight line-clamp-1">{course.title}</p>
+        {enrolledCourses.length === 0 ? (
+          <div className="text-center py-12 border-2 border-dashed border-border rounded-xl space-y-3 bg-muted/10">
+            <BookOpen className="w-10 h-10 mx-auto text-muted-foreground opacity-60" />
+            <p className="text-sm font-semibold text-foreground">You are not enrolled in any UPSC courses yet.</p>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+              Unlock your structured daily roadmap, live mentor reviews, and Duolingo-style study paths today.
+            </p>
+            <button
+              onClick={() => setLocation("/courses")}
+              className="inline-flex h-9 items-center justify-center rounded-xl text-white px-5 text-xs font-bold hover:opacity-95 transition"
+              style={{ background: SAFFRON }}
+            >
+              Browse & Enroll Now
+            </button>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-4">
+            {enrolledCourses.map((course, i) => {
+              const gradients = [
+                `linear-gradient(135deg, ${NAVY} 0%, #1a3a6e 100%)`,
+                `linear-gradient(135deg, ${TEAL} 0%, #0f5a67 100%)`,
+              ];
+              const progress = course.durationWeeks
+                ? Math.min(Math.round(((currentUser?.currentWeek || 1) / course.durationWeeks) * 100), 100)
+                : (i === 0 ? 35 : 60);
+              return (
+                <div key={course.id} data-testid={`card-course-${course.id}`}
+                  className="rounded-xl overflow-hidden border border-border hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => setLocation(`/courses/${course.id}`)}>
+                  <div className="h-24 flex items-end p-4" style={{ background: gradients[i % 2] }}>
+                    <div>
+                      <span className="text-xs px-2 py-0.5 rounded-full text-white/80 bg-white/10 font-medium">{course.category}</span>
+                      <p className="text-white font-semibold text-sm mt-1 leading-tight line-clamp-1">{course.title}</p>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                      <span>{course.instructor}</span>
+                      <span className="flex items-center gap-1"><Star className="w-3 h-3" style={{ color: GOLD }} fill={GOLD} />{course.rating}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="text-muted-foreground">Progress</span>
+                      <span className="font-semibold" style={{ color: NAVY }}>{progress}%</span>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${progress}%`, background: SAFFRON }} />
+                    </div>
                   </div>
                 </div>
-                <div className="p-4">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                    <span>{course.instructor}</span>
-                    <span className="flex items-center gap-1"><Star className="w-3 h-3" style={{ color: GOLD }} fill={GOLD} />{course.rating}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-semibold" style={{ color: NAVY }}>{progress}%</span>
-                  </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${progress}%`, background: SAFFRON }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Upcoming Sessions */}
