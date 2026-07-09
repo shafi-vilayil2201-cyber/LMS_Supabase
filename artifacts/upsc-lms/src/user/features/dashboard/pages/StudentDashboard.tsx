@@ -130,7 +130,7 @@ export default function StudentDashboard() {
               </p>
             </div>
             <a
-              href={`https://t.me/IGenLMS_bot?start=${currentUser?.id}`}
+              href={`https://t.me/${import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'IGEN_DisciplineOS1_bot'}?start=${currentUser?.id}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-9 items-center justify-center gap-2 rounded-xl text-white px-4 text-xs font-bold bg-[#229ED9] hover:bg-[#1d8bcb] transition-colors flex-shrink-0"
